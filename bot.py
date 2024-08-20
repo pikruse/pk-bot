@@ -43,9 +43,24 @@ async def on_member_remove(member):
 # add a simple hello command
 @tree.command(
     name="hello",
-    description="say hello!",
+    description="Say Hello!",
     guild=discord.Object(id=GUILD))
 async def hello(interaction: discord.Interaction):
     await interaction.response.send_message(f"Hello, {interaction.user.mention}!")
+
+# add a simple ping command
+@tree.command(
+    name="ping",
+    description="Displays the bot's latency in milliseconds",
+    guild=discord.Object(id=GUILD))
+async def ping(interaction: discord.Interaction):
+    latency = client.latency * 1000
+    if latency < 100:
+        status = f"Your latency is {latency}. That's good! 🟢"
+    elif latency < 200:
+        status = f"Your latency is {latency}. kill yourself! 🟠"
+    else:
+        status = f"Your latency is {latency}. That's ass!"
+    
 
 client.run(TOKEN)
