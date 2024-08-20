@@ -13,15 +13,18 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 
 intents = discord.Intents.all()
-client = commands.Bot(command_prefix='/', intents=intents)
 
-# events
+client = commands.Bot(command_prefix='/', intents=intents)
+tree = client.tree
+
+# on_ready event is triggered when the bot is ready to work
 @client.event
 async def on_ready():
-    await client.tree.sync(guild=discord.Object(id=GUILD))
+    await tree.sync(guild=discord.Object(id=GUILD))
     # print "ready" in the console when the bot is ready to work
     print("ready")
 
+# on_member_join event is triggered when a new member joins the server
 @client.event
 async def on_member_join(member):
     guild = member.guild
@@ -29,11 +32,20 @@ async def on_member_join(member):
     if channel:
         await channel.send(f"Thank You for joining {guild}, {member.mention}!")
 
+# on_member_remove event is triggered when a member leaves the server
 @client.event
 async def on_member_remove(member):
     guild = member.guild
     channel = guild.system_channel
     if channel:
         await channel.send(f"Goodbye {member.mention}!")
+
+# add a simple hello command
+@tree.command(
+    name="hello",
+    description="say hello!",
+    guild=discord.Object(id=GUILD))
+async def hello(interaction: discord.Interaction):
+    await interaction.response.send_message(f"Hello, {interaction.user.mention}!")
 
 client.run(TOKEN)
