@@ -13,19 +13,24 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 
 intents = discord.Intents.all()
-intents.messages = True
+client = commands.Bot(command_prefix='/', intents=intents)
 
-client = commands.Bot(command_prefix='!', intents=intents)
+# events
+@client.event
+async def on_ready():
+    await client.tree.sync(guild=discord.Object(id=GUILD))
+    # print "ready" in the console when the bot is ready to work
+    print("ready")
 
 @client.event
 async def on_member_join(member):
     guild = member.guild
     channel = guild.system_channel #system channel (welcome channel)
     if channel:
-        await channel.send(f"Thank You for joining {member.mention}!")
+        await channel.send(f"Thank You for joining {guild}, {member.mention}!")
 
 @client.event
-async def on_member_leave(member):
+async def on_member_remove(member):
     guild = member.guild
     channel = guild.system_channel
     if channel:
