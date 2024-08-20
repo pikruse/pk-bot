@@ -24,5 +24,11 @@ async def on_member_join(member):
     if channel:
         await channel.send(f"Thank You for joining {member.mention}!")
 
+@client.event
+async def on_member_leave(member):
+    guild = member.guild
+    channel = guild.system_channel
+    if channel:
+        await channel.send(f"Goodbye {member.mention}!")
 
 client.run(TOKEN)
