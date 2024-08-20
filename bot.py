@@ -9,11 +9,12 @@ from discord.ext import tasks, commands
 
 load_dotenv()
 
+# get token and guild from the .env file
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 
+# get intents instance
 intents = discord.Intents.all()
-
 client = commands.Bot(command_prefix='/', intents=intents)
 tree = client.tree
 
