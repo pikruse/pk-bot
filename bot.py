@@ -56,11 +56,11 @@ async def hello(interaction: discord.Interaction):
 async def ping(interaction: discord.Interaction):
     latency = client.latency * 1000
     if latency < 100:
-        status = f"Your latency is {latency}. That's good! 🟢"
+        status = "Good! 🟢"
     elif latency < 200:
-        status = f"Your latency is {latency}. kill yourself! 🟠"
+        status = "Average! 🟠"
     else:
-        status = f"Your latency is {latency}. That's ass!"
-    
+        status = "Bad! 🔴"
+    await interaction.response.send_message(f"Your latency is {latency:.2f}. {status}")
 
 client.run(TOKEN)
