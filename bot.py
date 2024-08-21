@@ -94,7 +94,7 @@ async def graph_latency(interaction: discord.Interaction):
     # add regions indicating the status of the latency
     fair = 100
     bad = 200
-    x = np.arange(min(timestamps), max(timestamps), 0.1)
+    x = timestamps
     y_upper = 250 if plt.gca().get_ylim()[1] < 200 else plt.gca().get_ylim()[1]
 
     x = timestamps
