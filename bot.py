@@ -89,6 +89,13 @@ async def graph_latency(interaction: discord.Interaction):
     max_ticks = 10  # set max number of ticks on x-axis
     if len(latency_values) < 2:
         await interaction.response.send_message("Not enough data to generate a graph.")
+        return
+    
+    # add regions indicating the status of the latency
+    fair = 100
+    bad = 200
+    x = np.arange(min(timestamps), max(timestamps), 0.1)
+    y_upper = 250 if plt.gca().get_ylim()[1] < 200 else plt.gca().get_ylim()[1]
 
     x = timestamps
     y = latency_values
@@ -121,6 +128,5 @@ async def graph_latency(interaction: discord.Interaction):
 
     with open("latency_graph.png", "rb") as file:
         await interaction.response.send_message("Here is the graph of the bot's latency", file=discord.File(file))
-
-
+        return
 client.run(TOKEN)
