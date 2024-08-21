@@ -23,14 +23,14 @@ tree = client.tree
 latency_values = []
 timestamps = []
 
-# record latency every 20 seconds
-@tasks.loop(seconds=20)
+# record latency every 5 seconds
+@tasks.loop(seconds=5)
 async def record_latency():
-    latency_values.append(client.latency * 1000)  # Convert to ms
-    timestamps.append(time.time())  # Store current timestamp
+    latency_values.append(client.latency * 1000)
+    timestamps.append(datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-5))).strftime("%H:%M:%S"))
 
-    # Keep only the last 10 values for example
-    if len(latency_values) > 10:
+    # keep only the last 100 values
+    if len(latency_values) > 100:
         latency_values.pop(0)
         timestamps.pop(0)
 
@@ -86,18 +86,36 @@ async def ping(interaction: discord.Interaction):
               description="Displays the bot's latency in a graph",
               guild=discord.Object(id=GUILD))
 async def graph_latency(interaction: discord.Interaction):
-    # Ensure there are enough data points
+    max_ticks = 10  # set max number of ticks on x-axis
     if len(latency_values) < 2:
         await interaction.response.send_message("Not enough data to generate a graph.")
 
-    # Generate graph
+    x = timestamps
+    y = latency_values
+    
+    fair = 100
+    bad = 200
+    y_upper = 250 if plt.gca().get_ylim()[1] < 200 else plt.gca().get_ylim()[1]
+
     plt.figure()
-    plt.plot(timestamps, latency_values, marker='o')
+    plt.plot(x, y)
     plt.xlabel("Time")
     plt.ylabel("Latency (ms)")
     plt.title("Bot Latency Over Time")
     plt.xticks(rotation=45)
+    
+    # reduce number of ticks
+    plt.gca().xaxis.set_major_locator(plt.MaxNLocator(max_ticks))
+    
     plt.tight_layout()
+    plt.axhline(y=fair, color='orange')
+    plt.axhline(y=bad, color='red')
+    
+    # adjust for transparency
+    plt.fill_between(x, 0, fair, color='green', alpha=0.1, label="Good")
+    plt.fill_between(x, fair, bad, color='orange', alpha=0.1, label="Fair")
+    plt.fill_between(x, bad, y_upper, color='red', alpha=0.1, label="Bad")
+    
     plt.savefig("latency_graph.png")
     plt.close()
 
