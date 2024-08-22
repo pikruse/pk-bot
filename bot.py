@@ -66,64 +66,60 @@ async def on_member_remove(member):
 async def hello(interaction: discord.Interaction):
     await interaction.response.send_message(f"Hello, {interaction.user.mention}!")
 
-# add a simple ping command to display current latency
-@tree.command(
-    name="ping",
-    description="Displays the bot's latency in milliseconds",
-    guild=discord.Object(id=GUILD))
-async def ping(interaction: discord.Interaction):
-    latency = client.latency * 1000
-    if latency < 100:
-        status = "Good! 🟢"
-    elif latency < 200:
-        status = "Fair! 🟠"
-    else:
-        status = "Bad! 🔴"
-    await interaction.response.send_message(f"Your latency is {latency:.2f}. {status}")
-
 # add a command to display the bot's latency in a graph
-@tree.command(name="graph_latency", 
-              description="Displays the bot's latency in a graph",
+@tree.command(name="ping", 
+              description="Displays the bot's latency in graph or text format",
               guild=discord.Object(id=GUILD))
-async def graph_latency(interaction: discord.Interaction):
-    max_ticks = 10  # set max number of ticks on x-axis
-    if len(latency_values) < 2:
-        await interaction.response.send_message("Not enough data to generate a graph.")
-        return
-    
-    fair = 100
-    bad = 200
+async def ping(interaction: discord.Interaction,
+                        format: str = "text"):
+    if format == "text":
+            latency = client.latency * 1000
+            if latency < 100:
+                status = "Good! 🟢"
+            elif latency < 200:
+                status = "Fair! 🟠"
+            else:
+                status = "Bad! 🔴"
+            await interaction.response.send_message(f"Your latency is {latency:.2f}. {status}")
+    else:
+        max_ticks = 10  # set max number of ticks on x-axis
+        if len(latency_values) < 2:
+            await interaction.response.send_message("Not enough data to generate a graph.")
+            return
+        
+        fair = 100
+        bad = 200
 
-    x = timestamps
-    y = latency_values
+        x = timestamps
+        y = latency_values
 
-    y_upper = max(250, plt.gca().get_ylim()[1])
-    
-    plt.figure()
-    plt.plot(x, y)
-    plt.xlabel("Time")
-    plt.ylabel("Latency (ms)")
-    plt.title("Bot Latency Over Time")
-    plt.xticks(rotation=45)
-    
-    plt.gca().xaxis.set_major_locator(plt.MaxNLocator(max_ticks))
+        y_upper = max(250, plt.gca().get_ylim()[1])
+        
+        plt.figure()
+        plt.plot(x, y)
+        plt.xlabel("Time")
+        plt.ylabel("Latency (ms)")
+        plt.title("Bot Latency Over Time")
+        plt.xticks(rotation=45)
+        
+        plt.gca().xaxis.set_major_locator(plt.MaxNLocator(max_ticks))
 
-    plt.xlim(min(x), max(x))
-    plt.ylim(0, y_upper)
-    
-    plt.axhline(y=fair, color='orange')
-    plt.axhline(y=bad, color='red')
-    
-    plt.fill_between(x, 0, fair, color='green', alpha=0.1, label="Good")
-    plt.fill_between(x, fair, bad, color='orange', alpha=0.1, label="Fair")
-    plt.fill_between(x, bad, y_upper, color='red', alpha=0.1, label="Bad")
-    
-    plt.savefig("latency_graph.png", bbox_inches='tight')
-    plt.close()
+        plt.xlim(min(x), max(x))
+        plt.ylim(0, y_upper)
+        
+        plt.axhline(y=fair, color='orange')
+        plt.axhline(y=bad, color='red')
+        
+        plt.fill_between(x, 0, fair, color='green', alpha=0.1, label="Good")
+        plt.fill_between(x, fair, bad, color='orange', alpha=0.1, label="Fair")
+        plt.fill_between(x, bad, y_upper, color='red', alpha=0.1, label="Bad")
+        
+        plt.savefig("latency_graph.png", bbox_inches='tight')
+        plt.close()
 
-    with open("latency_graph.png", "rb") as file:
-        await interaction.response.send_message("Here is the graph of the bot's latency", file=discord.File(file))
-        return
+        with open("latency_graph.png", "rb") as file:
+            await interaction.response.send_message("Here is the graph of the bot's latency", file=discord.File(file))
+            return
 
 # display the pfp of the user
 @tree.command(
