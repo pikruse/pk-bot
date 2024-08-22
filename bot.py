@@ -41,6 +41,65 @@ async def on_ready():
     # print "ready" in the console when the bot is ready to work
     print("ready")
     record_latency.start()
+    
+"""
+# This sends or updates an embed message with a description of the roles.
+@client.event
+async def on_message(message):
+    if message.channel.id == 1276158966497411123:
+        if message.content.startswith('roles'):
+            embedvar = discord.Embed(title="React to this message to get your roles!",
+                                     description="Click the corresponding emoji to receive your role.\n🎙️"
+                                                  " - Artist\n🧑‍🔬"
+                                                  " - Producer\n💻"
+                                                  " - Developer", color=0x00ff00)
+            await message.channel.send(embed=embedvar)
+            print("Changed message embed color.")
+        elif message.content.startswith('update'):
+            embedvar2 = discord.Embed(title="React to this message to get your roles!",
+                                      description="Click the corresponding emoji to receive your role.\n🎙️"
+                                                  " - Artist\n🧑‍🔬"
+                                                  " - Producer\n💻"
+                                                  " - Developer", color=0x00ff00)
+            channel = client.get_channel(1276158966497411123)
+            msg = await channel.fetch_message(1276158966497411123)
+            await msg.edit(embed=embedvar2)
+            print("Updated role reaction message.")
+    else:
+        return
+"""
+
+# implement reaction roles
+@client.event
+async def on_reaction_add(reaction, user):
+    channel = client.get_channel(1276158966497411123)
+    if reaction.message.channel.id != channel.id:
+        return
+    elif reaction.emoji == "🎙️":
+      role = discord.utils.get(user.server.roles, name="Artist")
+    elif reaction.emoji == "🧑‍🔬":
+        role = discord.utils.get(user.server.roles, name="Producer")
+    elif reaction.emoji == "💻":
+        role = discord.utils.get(user.server.roles, name="Developer")
+    if role is not None:
+            await user.add_roles(role)
+            print(f"Assigned {user.mention} to {role}.")
+
+# implement reaction role removal
+@client.event
+async def on_reaction_add(reaction, user):
+    channel = client.get_channel(1276158966497411123)
+    if reaction.message.channel.id != channel.id:
+        return
+    elif reaction.emoji == "🎙️":
+      Role = discord.utils.get(user.server.roles, name="Artist")
+      await user.add_roles(Role)
+    elif reaction.emoji == "🧑‍🔬":
+        Role = discord.utils.get(user.server.roles, name="Producer")
+        await user.add_roles(Role)
+    elif reaction.emoji == "💻":
+        Role = discord.utils.get(user.server.roles, name="Developer")
+        await user.add_roles(Role)
 
 # on_member_join event is triggered when a new member joins the server
 @client.event
