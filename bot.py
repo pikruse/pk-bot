@@ -125,4 +125,19 @@ async def graph_latency(interaction: discord.Interaction):
         await interaction.response.send_message("Here is the graph of the bot's latency", file=discord.File(file))
         return
 
+# display the pfp of the user
+@tree.command(
+    name="pfp",
+    description="Displays user's pfp",
+    guild=discord.Object(id=GUILD)
+
+)
+async def pfp(interaction: discord.Interaction, member: discord.Member = None):
+    if member is None:
+        await interaction.response.send_message("Error: Please mention a user.")
+        return
+
+    user_avatar_url = member.display_avatar.url
+    await interaction.response.send_message(f"** @{member.name} pfp:** {user_avatar_url}")
+
 client.run(TOKEN)
