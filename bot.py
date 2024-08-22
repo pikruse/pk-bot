@@ -136,4 +136,13 @@ async def pfp(interaction: discord.Interaction, member: discord.Member = None):
     user_avatar_url = member.display_avatar.url
     await interaction.response.send_message(f"** @{member.name} pfp:** {user_avatar_url}")
 
+# add a "command not found" message
+@client.event
+async def on_command_error(ctx, error):
+    if ctx.message.content.count('/') <= 1:
+        if isinstance(error, commands.CommandNotFound):
+            await ctx.send("This command does not exist! Contact the bot devs for more information.")
+        else:
+            await ctx.send(error)
+
 client.run(TOKEN)
