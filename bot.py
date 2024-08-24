@@ -10,6 +10,10 @@ from dotenv import load_dotenv
 from discord import app_commands
 from discord.ext import tasks, commands
 
+#####################
+### INITIAL SETUP ###
+#####################
+
 load_dotenv()
 
 # get token and guild from the .env file
@@ -34,6 +38,10 @@ async def record_latency():
         latency_values.pop(0)
         timestamps.pop(0)
 
+##############
+### EVENTS ###
+##############
+
 # on_ready event is triggered when the bot is ready to work
 @client.event
 async def on_ready():
@@ -41,65 +49,47 @@ async def on_ready():
     # print "ready" in the console when the bot is ready to work
     print("ready")
     record_latency.start()
-    
-"""
-# This sends or updates an embed message with a description of the roles.
-@client.event
-async def on_message(message):
-    if message.channel.id == 1276158966497411123:
-        if message.content.startswith('roles'):
-            embedvar = discord.Embed(title="React to this message to get your roles!",
-                                     description="Click the corresponding emoji to receive your role.\n🎙️"
-                                                  " - Artist\n🧑‍🔬"
-                                                  " - Producer\n💻"
-                                                  " - Developer", color=0x00ff00)
-            await message.channel.send(embed=embedvar)
-            print("Changed message embed color.")
-        elif message.content.startswith('update'):
-            embedvar2 = discord.Embed(title="React to this message to get your roles!",
-                                      description="Click the corresponding emoji to receive your role.\n🎙️"
-                                                  " - Artist\n🧑‍🔬"
-                                                  " - Producer\n💻"
-                                                  " - Developer", color=0x00ff00)
-            channel = client.get_channel(1276158966497411123)
-            msg = await channel.fetch_message(1276158966497411123)
-            await msg.edit(embed=embedvar2)
-            print("Updated role reaction message.")
-    else:
-        return
-"""
 
-# implement reaction roles
+# implement reaction role 
 @client.event
-async def on_reaction_add(reaction, user):
-    channel = client.get_channel(1276158966497411123)
-    if reaction.message.channel.id != channel.id:
+async def on_raw_reaction_add(payload):
+    if not payload.guild_id:
         return
-    elif reaction.emoji == "🎙️":
-      role = discord.utils.get(user.server.roles, name="Artist")
-    elif reaction.emoji == "🧑‍🔬":
-        role = discord.utils.get(user.server.roles, name="Producer")
-    elif reaction.emoji == "💻":
-        role = discord.utils.get(user.server.roles, name="Developer")
-    if role is not None:
-            await user.add_roles(role)
-            print(f"Assigned {user.mention} to {role}.")
+    guild = client.get_guild(payload.guild_id) # Get guild
+    member = discord.utils.get(guild.members, id=payload.user_id) # Get the member out of the guild
+    # The channel ID should be an integer:
+    if payload.channel_id == 1276158966497411123: # Only channel where it will work
+        if str(payload.emoji) == "🎙️": # Your emoji
+            role = discord.utils.get(payload.member.guild.roles, id=1276172227326246944) # Role ID
+        elif str(payload.emoji) == "🧑‍🔬": # Your emoji
+            role = discord.utils.get(payload.member.guild.roles, id=1276172284134162634)
+        elif str(payload.emoji) == "💻": # Your emoji
+            role = discord.utils.get(payload.member.guild.roles, id=1276172316492959897)
+        else:
+            role = discord.utils.get(guild.roles, name=payload.emoji)
+        if role is not None: # If role exists
+            await payload.member.add_roles(role)
+            print(f"Added {role}")
 
-# implement reaction role removal
 @client.event
-async def on_reaction_add(reaction, user):
-    channel = client.get_channel(1276158966497411123)
-    if reaction.message.channel.id != channel.id:
+async def on_raw_reaction_remove(payload):
+    if not payload.guild_id:
         return
-    elif reaction.emoji == "🎙️":
-      Role = discord.utils.get(user.server.roles, name="Artist")
-      await user.add_roles(Role)
-    elif reaction.emoji == "🧑‍🔬":
-        Role = discord.utils.get(user.server.roles, name="Producer")
-        await user.add_roles(Role)
-    elif reaction.emoji == "💻":
-        Role = discord.utils.get(user.server.roles, name="Developer")
-        await user.add_roles(Role)
+    guild = client.get_guild(payload.guild_id)
+    member = discord.utils.get(guild.members, id=payload.user_id)
+    if payload.channel_id == 1276158966497411123: # Only channel where it will work
+        if str(payload.emoji) == "🎙️": # Your emoji
+            role = discord.utils.get(guild.roles, id=1276172227326246944) # Role ID
+        elif str(payload.emoji) == "🧑‍🔬": # Your emoji
+            role = discord.utils.get(guild.roles, id=1276172284134162634)
+        elif str(payload.emoji) == "💻": # Your emoji
+            role = discord.utils.get(guild.roles, id=1276172316492959897)
+        else:
+            role = discord.utils.get(guild.roles, name=payload.emoji)
+        if role is not None: # If role exists
+            await member.remove_roles(role)
+            print(f"Removed {role}")
+
 
 # on_member_join event is triggered when a new member joins the server
 @client.event
@@ -116,6 +106,10 @@ async def on_member_remove(member):
     channel = guild.system_channel
     if channel:
         await channel.send(f"Goodbye {member.mention}!")
+
+################
+### COMMANDS ###
+################
 
 # add a simple hello command
 @tree.command(
@@ -185,7 +179,6 @@ async def ping(interaction: discord.Interaction,
     name="pfp",
     description="Displays user's pfp",
     guild=discord.Object(id=GUILD)
-
 )
 async def pfp(interaction: discord.Interaction, member: discord.Member = None):
     if member is None:
@@ -194,6 +187,24 @@ async def pfp(interaction: discord.Interaction, member: discord.Member = None):
 
     user_avatar_url = member.display_avatar.url
     await interaction.response.send_message(f"** @{member.name} pfp:** {user_avatar_url}")
+
+# This sends or updates an embed message with a description of the roles.
+@tree.command(name="embed",
+              description="Send an embed message with roles",
+              guild=discord.Object(id=GUILD))
+async def embed(ctx: commands.Context):
+    channel = client.get_channel(1276158966497411123)
+    emb = discord.Embed(title="React to this message to get your roles!",
+                        description="Click the corresponding emoji to receive your role.\n🎙️"
+                                    " - Artist\n🧑‍🔬"
+                                    " - Producer\n💻"
+                                    " - Developer",
+                                    color=discord.Color.pink())
+    emb.set_thumbnail(url=ctx.guild.icon.url)
+    msg = await channel.send(embed=emb)
+    await msg.add_reaction("🧑‍🔬")
+    await msg.add_reaction("💻")
+    await msg.add_reaction("🎙️")
 
 # add a "command not found" message
 @client.event
