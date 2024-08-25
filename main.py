@@ -137,13 +137,15 @@ async def kick(interaction: discord.Interaction, member: discord.Member, reason:
     description="Times out a user (admin only)",
     guild=discord.Object(id=1042652024598167552)
 )
-async def timeout(interaction: discord.Interaction, member: discord.Member, duration: int, reason: str = "No reason provided"):
+async def timeout(interaction: discord.Interaction, 
+                  member: discord.Member, 
+                  duration: int, 
+                  reason: str = "No reason provided"):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("You do not have permissions! Contact an administrator...", ephemeral=True)
         return
-    await member.timeout(duration=duration, reason=reason)
+    await member.timeout(discord.utils.utcnow() + discord.utils.timedelta(seconds=duration), reason=reason)
     await interaction.response.send_message(f"{member.mention} has been timed out for {duration} seconds for: {reason}")
-
 
 # add a command to display the bot's latency in a graph
 @tree.command(name="ping", 
