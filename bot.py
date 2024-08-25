@@ -20,6 +20,7 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 
+
 # get intents instance
 intents = discord.Intents.all()
 client = commands.Bot(command_prefix='/', intents=intents)
@@ -58,13 +59,13 @@ async def on_raw_reaction_add(payload):
     guild = client.get_guild(payload.guild_id) # Get guild
     member = discord.utils.get(guild.members, id=payload.user_id) # Get the member out of the guild
     # The channel ID should be an integer:
-    if payload.channel_id == 1276158966497411123: # Only channel where it will work
+    if payload.channel_id == 1276157069095080067: # Only channel where it will work
         if str(payload.emoji) == "🎙️": # Your emoji
-            role = discord.utils.get(payload.member.guild.roles, id=1276172227326246944) # Role ID
+            role = discord.utils.get(payload.member.guild.roles, id=1275822380761219124) # Role ID
         elif str(payload.emoji) == "🧑‍🔬": # Your emoji
-            role = discord.utils.get(payload.member.guild.roles, id=1276172284134162634)
+            role = discord.utils.get(payload.member.guild.roles, id=1275822336704123021)
         elif str(payload.emoji) == "💻": # Your emoji
-            role = discord.utils.get(payload.member.guild.roles, id=1276172316492959897)
+            role = discord.utils.get(payload.member.guild.roles, id=1275822444946526208)
         else:
             role = discord.utils.get(guild.roles, name=payload.emoji)
         if role is not None: # If role exists
@@ -77,13 +78,13 @@ async def on_raw_reaction_remove(payload):
         return
     guild = client.get_guild(payload.guild_id)
     member = discord.utils.get(guild.members, id=payload.user_id)
-    if payload.channel_id == 1276158966497411123: # Only channel where it will work
+    if payload.channel_id == 1276157069095080067: # Only channel where it will work
         if str(payload.emoji) == "🎙️": # Your emoji
-            role = discord.utils.get(guild.roles, id=1276172227326246944) # Role ID
+            role = discord.utils.get(guild.roles, id=1275822380761219124) # Role ID
         elif str(payload.emoji) == "🧑‍🔬": # Your emoji
-            role = discord.utils.get(guild.roles, id=1276172284134162634)
+            role = discord.utils.get(guild.roles, id=1275822336704123021)
         elif str(payload.emoji) == "💻": # Your emoji
-            role = discord.utils.get(guild.roles, id=1276172316492959897)
+            role = discord.utils.get(guild.roles, id=1275822444946526208)
         else:
             role = discord.utils.get(guild.roles, name=payload.emoji)
         if role is not None: # If role exists
@@ -139,13 +140,11 @@ async def ping(interaction: discord.Interaction,
         if len(latency_values) < 2:
             await interaction.response.send_message("Not enough data to generate a graph.")
             return
-        
+
         fair = 100
         bad = 200
-
         x = timestamps
         y = latency_values
-
         y_upper = max(250, plt.gca().get_ylim()[1])
         
         plt.figure()
@@ -178,8 +177,7 @@ async def ping(interaction: discord.Interaction,
 @tree.command(
     name="pfp",
     description="Displays user's pfp",
-    guild=discord.Object(id=GUILD)
-)
+    guild=discord.Object(id=GUILD))
 async def pfp(interaction: discord.Interaction, member: discord.Member = None):
     if member is None:
         await interaction.response.send_message("Error: Please mention a user.")
@@ -193,7 +191,7 @@ async def pfp(interaction: discord.Interaction, member: discord.Member = None):
               description="Send an embed message with roles",
               guild=discord.Object(id=GUILD))
 async def embed(ctx: commands.Context):
-    channel = client.get_channel(1276158966497411123)
+    channel = client.get_channel(1276157069095080067)
     emb = discord.Embed(title="React to this message to get your roles!",
                         description="Click the corresponding emoji to receive your role.\n🎙️"
                                     " - Artist\n🧑‍🔬"
