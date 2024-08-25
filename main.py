@@ -98,7 +98,7 @@ async def on_member_join(member):
     guild = member.guild
     channel = guild.system_channel #system channel (welcome channel)
     if channel:
-        await channel.send(f"Thank You for joining {guild}, {member.mention}!")
+        await channel.send(f"Thank You for joining **{guild}**, {member.mention}!")
 
 # on_member_remove event is triggered when a member leaves the server
 @client.event
