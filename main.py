@@ -144,8 +144,7 @@ async def timeout(interaction: discord.Interaction,
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("You do not have permissions! Contact an administrator...", ephemeral=True)
         return
-    time = (datetime.datetime.utcnow() + datetime.timedelta(minutes=duration)).isoformat()
-    await member.timeout(until=time, reason=reason)
+    await member.timeout(datetime.timedelta(minutes=duration), reason=reason)
     await interaction.response.send_message(f"{member.mention} has been timed out for {duration} seconds for: {reason}")
 
 # add a command to display the bot's latency in a graph
