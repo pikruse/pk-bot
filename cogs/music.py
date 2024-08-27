@@ -57,8 +57,13 @@ class Music(commands.Cog):
         elif not ctx.voice_client.is_playing():
             await ctx.send("Queue is empty.")
     
+    # define skip command
     @commands.command()
     async def skip(self, ctx):
         if ctx.voice_client and ctx.voice_client.is_playing():
             ctx.voice_client.stop()
             await ctx.send("Skipped.")
+    
+# define setup command
+async def setup(client):
+    await client.add_cog(Music(client))

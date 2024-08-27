@@ -10,9 +10,6 @@ from dotenv import load_dotenv
 from discord import app_commands
 from discord.ext import tasks, commands
 
-# custom imports
-from music import Music # import music.py file
-
 #####################
 ### INITIAL SETUP ###
 #####################
@@ -53,6 +50,11 @@ async def on_ready():
     # print "ready" in the console when the bot is ready to work
     print("ready")
     record_latency.start()
+
+async def load_cogs():
+    for filename in os.listdir('./cogs'):
+     if filename.endswith('.py'):
+      await client.load_extension(f'cogs.{filename[:-3]}') 
 
 # implement reaction role 
 @client.event
@@ -242,8 +244,5 @@ async def on_command_error(ctx, error):
             await ctx.send("This command does not exist! Contact the bot devs for more information.")
         else:
             await ctx.send(error)
-
-# add the music cog to the bot
-client.add_cog(Music(client))
 
 client.run(TOKEN)
