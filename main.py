@@ -231,6 +231,13 @@ async def pfp(interaction: discord.Interaction, member: discord.Member = None):
     user_avatar_url = member.display_avatar.url
     await interaction.response.send_message(f"** @{member.name} pfp:** {user_avatar_url}")
 
+@tree.command(name='credits', help='This command returns the credits')
+async def credits(ctx):
+    emb = discord.Embed(title="Credits",
+                        description="This bot was created by @prod_pk, @obkruse, and @kamel",
+                        color=discord.Color.purple())
+    await ctx.send(embed=emb)
+
 # This sends or updates an embed message with a description of the roles.
 @tree.command(name="embed",
               description="Send an embed message with roles",
