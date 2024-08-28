@@ -2,9 +2,11 @@
 import discord
 import yt_dlp
 import asyncio
-from discord.ext import commands
 
-# define intents
+from discord.ext import commands
+from discord import app_commands
+
+# define intents, guilds, etc.
 intents = discord.Intents.all()
 
 # define ffmpeg options
@@ -18,9 +20,11 @@ class Music(commands.Cog):
     def __init__(self, client):
         self.client = client
         self.queue = []
-    
+        tree = self.client.tree
+
     # play command
-    @commands.command()
+    @commands.command(name="play",
+                      description="Plays music in a voice channel. If the bot is not in a voice channel, it will join the voice channel of the user who issued the command.")
     async def play(self, ctx, *, search):
         voice_channel = ctx.author.voice.channel if ctx.author.voice else None
 
@@ -46,8 +50,18 @@ class Music(commands.Cog):
         
         # play music if not playing
         if not ctx.voice_client.is_playing():
-            self.play_next(ctx)
+            await self.play_next(ctx)
+    
+    @commands.command(name="queue",
+                      description="Shows the current queue of songs.")
+    async def queue(self, ctx):
+        if self.queue:
+            embed = discord.Embed(title="Up Next:", description="\n".join([f"*{i}*: **{title[1]}**" for i, title in enumerate(self.queue)]), color=discord.Color.blurple())
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("Queue is empty.")
 
+    @commands.command()
     async def play_next(self, ctx):
         if self.queue:
             url, title = self.queue.pop(0)
@@ -58,11 +72,22 @@ class Music(commands.Cog):
             await ctx.send("Queue is empty.")
     
     # define skip command
-    @commands.command()
+    @commands.command(name="skip",
+                      brief="Skip the current song.")
     async def skip(self, ctx):
         if ctx.voice_client and ctx.voice_client.is_playing():
             ctx.voice_client.stop()
             await ctx.send("Skipped.")
+    
+    # define stop command
+    @commands.command(name="stop",
+                      aliases=["leave", "disconnect"],
+                      description="Stop the bot and make it leave the voice channel.")
+    async def stop(self, ctx):
+        if ctx.voice_client and ctx.voice_client.is_playing():
+            ctx.voice_client.stop()
+            await ctx.voice_client.disconnect()
+            await ctx.send("Stopped. Thanks for listening!")
     
 # define setup command
 async def setup(client):

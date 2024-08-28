@@ -39,6 +39,16 @@ async def record_latency():
         latency_values.pop(0)
         timestamps.pop(0)
 
+async def load_cogs():
+    # load all cogs
+    for filename in os.listdir('./cogs'):
+        if filename.endswith('.py'):
+            try:
+                await client.load_extension(f'cogs.{filename[:-3]}')
+                print(f'{filename} cog loaded.')
+            except Exception as e:
+                print(f'Failed to load {filename} cog: {e}')
+
 ##############
 ### EVENTS ###
 ##############
@@ -46,15 +56,18 @@ async def record_latency():
 # on_ready event is triggered when the bot is ready to work
 @client.event
 async def on_ready():
-    await tree.sync(guild=discord.Object(id=GUILD))
+    # load all cogs
+    await load_cogs()
+
+    # sync
+    await tree.sync()
+    print(f'Command tree synced with guild {GUILD}.')
+
     # print "ready" in the console when the bot is ready to work
     print("ready")
-    record_latency.start()
 
-async def load_cogs():
-    for filename in os.listdir('./cogs'):
-     if filename.endswith('.py'):
-      await client.load_extension(f'cogs.{filename[:-3]}') 
+    # start recording latency
+    record_latency.start()
 
 # implement reaction role 
 @client.event
