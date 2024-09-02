@@ -54,6 +54,11 @@ ffmpeg_options = {
 
 ytdl = yt_dlp.YoutubeDL(ytdl_options)
 
+# discord opus
+discord.opus.load_opus('libopus.dylib')
+if not discord.opus.is_loaded():
+    raise RuntimeError('Opus failed to load')
+
 # record latency every 5 seconds
 @tasks.loop(seconds=5)
 async def record_latency():
@@ -82,12 +87,8 @@ async def load_cogs():
 # on_ready event is triggered when the bot is ready to work
 @client.event
 async def on_ready():
-    # load all cogs
-    await load_cogs()
-
     # sync
-    tree.copy_global_to(guild=GUILD)
-    await tree.sync(guild=GUILD)
+    await tree.sync(guild = discord.Object(id=GUILD))
     print(f'Command tree synced with guild {GUILD}.')
 
     # print "ready" in the console when the bot is ready to work
@@ -258,12 +259,12 @@ async def pfp(interaction: discord.Interaction, member: discord.Member = None):
     user_avatar_url = member.display_avatar.url
     await interaction.response.send_message(f"** @{member.name} pfp:** {user_avatar_url}")
 
-@tree.command(name='credits', help='This command returns the credits')
-async def credits(ctx):
+@tree.command(name='credits', description='Returns the bot credits')
+async def credits(interaction: discord.Interaction):
     emb = discord.Embed(title="Credits",
                         description="This bot was created by @prod_pk, @obkruse, and @kamel",
                         color=discord.Color.purple())
-    await ctx.send(embed=emb)
+    await interaction.response.send_message(embed=emb)
 
 # This sends or updates an embed message with a description of the roles.
 @tree.command(name="embed",
@@ -284,16 +285,19 @@ async def embed(ctx: commands.Context):
     await msg.add_reaction("🎙️")
 
 # join voice channel
-@client.tree.command()
+@client.tree.command(name="join",
+                     description="Join a voice channel",)
 async def join(interaction: discord.Interaction):
-    if (interaction.user.voice):
+    if interaction.user.voice:
         await interaction.response.send_message(f"Joining...")
-        client.current_voice_channel = interaction.user.voice.channel.connect()
+        channel = interaction.user.voice.channel
+        await channel.connect()
     else:
         await interaction.response.send_message(f"You must be in a voice channel to use this command!")
 
 # play command
-@tree.command()
+@tree.command(name="play",
+              description="Play audio from a youtube URL",)
 @app_commands.describe(url="URL of the video to play")
 async def play(interaction: discord.Interaction,
                url: str):
@@ -302,37 +306,83 @@ async def play(interaction: discord.Interaction,
     guild = interaction.guild
     guild.voice_client.play(player, after=lambda e: print(f'Player error **{e}**') if e else None)
 
+# queue command
+@tree.command(name="queue",
+                description="Queue a song to play",
+                guild=discord.Object(id=GUILD))
+async def queue(interaction: discord.Interaction, url: str):
+    if interaction.guild.voice_client:
+        player = await YTDLSource.from_url(url, stream=True)
+        interaction.guild.voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
+        await interaction.response.send_message(f"Queued {player.title}!")
+    else:
+        await interaction.response.send_message(f"Not currently in a voice channel!")
+
+# view queue command
+@tree.command(name="view_queue",
+              description="View the current queue",
+              guild=discord.Object(id=GUILD))
+async def view_queue(interaction: discord.Interaction):
+    if not interaction.guild.voice_client:
+        await interaction.response.send_message(f"Not currently in a voice channel!")
+    else:
+        if not interaction.guild.voice_client.queue:
+            queue_str = "No songs in queue!"
+        else:
+            queue_str = "\n".join([f"*{i}*. **{song.title}**" for i, song in enumerate(interaction.guild.voice_client.queue)])
+    emb = discord.Embed(title="**Current Queue**",
+                        color=discord.Color.purple(),
+                        description=queue_str)
+    await interaction.response.send_message(embed=emb)
+
+# skip command
+@tree.command(name="skip",
+              description="Skip the current audio",
+              guild=discord.Object(id=GUILD))
+async def skip(interaction: discord.Interaction):
+    if interaction.guild.voice_client:
+        interaction.guild.voice_client.skip()
+        await interaction.response.send_message(f"Skipped!")
+    else:
+        await interaction.response.send_message(f"Not currently in a voice channel!")
+
+
 # pause command
-@tree.command()
+@tree.command(name="pause",
+              description="Pause the audio",
+              guild=discord.Object(id=GUILD))
 async def pause(interaction: discord.Interaction):
-    if client.current_voice_channel:
-        if client.current_voice_channel.is_paused():
+    if interaction.guild.voice_client:
+        if interaction.guild.voice_client.is_paused():
             await interaction.response.send_message(f"Audio is already paused!")
             return
-        client.current_voice_channel.pause()
+        interaction.guild.voice_client.pause()
         await interaction.response.send_message(f"Audio paused!")
     else:
         await interaction.response.send_message(f"Not currently in a voice channel!")
 
 # resume command
-@tree.command()
+@tree.command(name = "resume",
+              description = "Resume the audio",
+              guild = discord.Object(id=GUILD))
 async def resume(interaction: discord.Interaction):
-    if client.current_voice_channel:
-        if client.current_voice_channel.is_paused():
+    if interaction.guild.voice_client:
+        if interaction.guild.voice_client.is_paused():
             await interaction.response.send_message(f"Resuming audio...")
-            client.current_voice_channel.resume()
+            interaction.guild.voice_client.resume()
         else:
             await interaction.response.send_message(f"Audio is not currently paused!")
     else:
         await interaction.response.send_message(f"Not currently in a voice channel!")
 
 # stop command
-@tree.command()
+@tree.command(name = "stop",
+              description = "Stop the audio",
+              guild = discord.Object(id=GUILD))
 async def stop(interaction: discord.Interaction):
-    if client.current_voice_channel:
-        await client.current_voice_channel.disconnect()
+    if interaction.guild.voice_client:
+        await interaction.guild.voice_client.disconnect()
         await interaction.response.send_message(f"Stopped audio!")
-        client.current_voice_channel = None
     else:
         await interaction.response.send_message(f"Not currently in a voice channel!")
         
