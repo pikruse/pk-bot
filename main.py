@@ -5,10 +5,14 @@ import asyncio
 import matplotlib.pyplot as plt
 import numpy as np
 import time
+import yt_dlp
 
 from dotenv import load_dotenv
 from discord import app_commands
 from discord.ext import tasks, commands
+
+# custom imports
+from cogs.music import YTDLSource
 
 #####################
 ### INITIAL SETUP ###
@@ -20,13 +24,35 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 
-
 # get intents instance
 intents = discord.Intents.all()
 client = commands.Bot(command_prefix='/', intents=intents)
 tree = client.tree
 latency_values = []
 timestamps = []
+
+# music options
+# Setup Youtube DL library
+ytdl_options = {
+    'format': 'bestaudio/best',
+    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'restrictfilenames': True,
+    'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'auto',
+    'source_address': '0.0.0.0',  # bind to ipv4 since ipv6 addresses cause issues sometimes
+}
+
+# setup FFmpeg
+ffmpeg_options = {
+    'options': '-vn',
+}
+
+ytdl = yt_dlp.YoutubeDL(ytdl_options)
 
 # record latency every 5 seconds
 @tasks.loop(seconds=5)
@@ -60,7 +86,8 @@ async def on_ready():
     await load_cogs()
 
     # sync
-    await tree.sync()
+    tree.copy_global_to(guild=GUILD)
+    await tree.sync(guild=GUILD)
     print(f'Command tree synced with guild {GUILD}.')
 
     # print "ready" in the console when the bot is ready to work
@@ -256,6 +283,59 @@ async def embed(ctx: commands.Context):
     await msg.add_reaction("💻")
     await msg.add_reaction("🎙️")
 
+# join voice channel
+@client.tree.command()
+async def join(interaction: discord.Interaction):
+    if (interaction.user.voice):
+        await interaction.response.send_message(f"Joining...")
+        client.current_voice_channel = interaction.user.voice.channel.connect()
+    else:
+        await interaction.response.send_message(f"You must be in a voice channel to use this command!")
+
+# play command
+@tree.command()
+@app_commands.describe(url="URL of the video to play")
+async def play(interaction: discord.Interaction,
+               url: str):
+    await interaction.response.send_message(f"Attempting to play **{url}**")
+    player = await YTDLSource.from_url(url, stream=True)
+    guild = interaction.guild
+    guild.voice_client.play(player, after=lambda e: print(f'Player error **{e}**') if e else None)
+
+# pause command
+@tree.command()
+async def pause(interaction: discord.Interaction):
+    if client.current_voice_channel:
+        if client.current_voice_channel.is_paused():
+            await interaction.response.send_message(f"Audio is already paused!")
+            return
+        client.current_voice_channel.pause()
+        await interaction.response.send_message(f"Audio paused!")
+    else:
+        await interaction.response.send_message(f"Not currently in a voice channel!")
+
+# resume command
+@tree.command()
+async def resume(interaction: discord.Interaction):
+    if client.current_voice_channel:
+        if client.current_voice_channel.is_paused():
+            await interaction.response.send_message(f"Resuming audio...")
+            client.current_voice_channel.resume()
+        else:
+            await interaction.response.send_message(f"Audio is not currently paused!")
+    else:
+        await interaction.response.send_message(f"Not currently in a voice channel!")
+
+# stop command
+@tree.command()
+async def stop(interaction: discord.Interaction):
+    if client.current_voice_channel:
+        await client.current_voice_channel.disconnect()
+        await interaction.response.send_message(f"Stopped audio!")
+        client.current_voice_channel = None
+    else:
+        await interaction.response.send_message(f"Not currently in a voice channel!")
+        
 # add a "command not found" message
 @client.event
 async def on_command_error(ctx, error):
