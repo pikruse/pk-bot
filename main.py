@@ -161,15 +161,13 @@ async def on_member_remove(member):
 # add a simple hello command
 @tree.command(
     name="hello",
-    description="Say Hello!",
-    guild=discord.Object(id=GUILD))
+    description="Say Hello!")
 async def hello(interaction: discord.Interaction):
     await interaction.response.send_message(f"Hello, {interaction.user.mention}!")
 
 @tree.command(
     name="kick",
-    description="Kicks a user (admin only)",
-    guild=discord.Object(id=1042652024598167552)
+    description="Kicks a user (admin only)"
 )
 async def kick(interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
     if not interaction.user.guild_permissions.administrator:
@@ -180,8 +178,7 @@ async def kick(interaction: discord.Interaction, member: discord.Member, reason:
 
 @tree.command(
     name="timeout",
-    description="Times out a user (admin only)",
-    guild=discord.Object(id=1042652024598167552)
+    description="Times out a user (admin only)"
 )
 async def timeout(interaction: discord.Interaction, 
                   member: discord.Member, 
@@ -195,8 +192,7 @@ async def timeout(interaction: discord.Interaction,
 
 # add a command to display the bot's latency in a graph
 @tree.command(name="ping", 
-              description="Displays the bot's latency in graph or text format",
-              guild=discord.Object(id=GUILD))
+              description="Displays the bot's latency in graph or text format")
 async def ping(interaction: discord.Interaction,
                         format: str = "text"):
     if format == "text":
@@ -249,8 +245,7 @@ async def ping(interaction: discord.Interaction,
 # display the pfp of the user
 @tree.command(
     name="pfp",
-    description="Displays user's pfp",
-    guild=discord.Object(id=GUILD))
+    description="Displays user's pfp")
 async def pfp(interaction: discord.Interaction, member: discord.Member = None):
     if member is None:
         await interaction.response.send_message("Error: Please mention a user.")
@@ -268,8 +263,7 @@ async def credits(interaction: discord.Interaction):
 
 # This sends or updates an embed message with a description of the roles.
 @tree.command(name="embed",
-              description="Send an embed message with roles",
-              guild=discord.Object(id=GUILD))
+              description="Send an embed message with roles")
 async def embed(ctx: commands.Context):
     channel = client.get_channel(1276157069095080067)
     emb = discord.Embed(title="React to this message to get your roles!",
@@ -285,8 +279,8 @@ async def embed(ctx: commands.Context):
     await msg.add_reaction("🎙️")
 
 # join voice channel
-@client.tree.command(name="join",
-                     description="Join a voice channel",)
+@tree.command(name="join",
+                     description="Joins a voice channel",)
 async def join(interaction: discord.Interaction):
     if interaction.user.voice:
         await interaction.response.send_message(f"Joining...")
@@ -306,10 +300,10 @@ async def play(interaction: discord.Interaction,
     guild = interaction.guild
     guild.voice_client.play(player, after=lambda e: print(f'Player error **{e}**') if e else None)
 
+
 # queue command
 @tree.command(name="queue",
-                description="Queue a song to play",
-                guild=discord.Object(id=GUILD))
+                description="Queues a song to play")
 async def queue(interaction: discord.Interaction, url: str):
     if interaction.guild.voice_client:
         player = await YTDLSource.from_url(url, stream=True)
@@ -320,13 +314,12 @@ async def queue(interaction: discord.Interaction, url: str):
 
 # view queue command
 @tree.command(name="view_queue",
-              description="View the current queue",
-              guild=discord.Object(id=GUILD))
+              description="Shows current queue")
 async def view_queue(interaction: discord.Interaction):
     if not interaction.guild.voice_client:
         await interaction.response.send_message(f"Not currently in a voice channel!")
     else:
-        if not interaction.guild.voice_client.queue:
+        if not interaction.guild.voice_client:
             queue_str = "No songs in queue!"
         else:
             queue_str = "\n".join([f"*{i}*. **{song.title}**" for i, song in enumerate(interaction.guild.voice_client.queue)])
@@ -337,8 +330,7 @@ async def view_queue(interaction: discord.Interaction):
 
 # skip command
 @tree.command(name="skip",
-              description="Skip the current audio",
-              guild=discord.Object(id=GUILD))
+              description="Skips the current audio")
 async def skip(interaction: discord.Interaction):
     if interaction.guild.voice_client:
         interaction.guild.voice_client.skip()
@@ -349,8 +341,7 @@ async def skip(interaction: discord.Interaction):
 
 # pause command
 @tree.command(name="pause",
-              description="Pause the audio",
-              guild=discord.Object(id=GUILD))
+              description="Pauses audio")
 async def pause(interaction: discord.Interaction):
     if interaction.guild.voice_client:
         if interaction.guild.voice_client.is_paused():
@@ -363,8 +354,7 @@ async def pause(interaction: discord.Interaction):
 
 # resume command
 @tree.command(name = "resume",
-              description = "Resume the audio",
-              guild = discord.Object(id=GUILD))
+              description = "Resumes audio")
 async def resume(interaction: discord.Interaction):
     if interaction.guild.voice_client:
         if interaction.guild.voice_client.is_paused():
@@ -377,7 +367,7 @@ async def resume(interaction: discord.Interaction):
 
 # stop command
 @tree.command(name = "stop",
-              description = "Stop the audio",
+              description = "Stops audio",
               guild = discord.Object(id=GUILD))
 async def stop(interaction: discord.Interaction):
     if interaction.guild.voice_client:
