@@ -13,59 +13,9 @@ load_dotenv()
 intents = discord.Intents.all()
 
 # music options
-# Setup Youtube DL library
-ytdl_options = {
-    'format': 'bestaudio/best',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    'restrictfilenames': True,
-    'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': True,
-    'no_warnings': True,
-    'default_search': 'auto',
-    'source_address': '0.0.0.0',  # bind to ipv4 since ipv6 addresses cause issues sometimes
-}
-
-# setup FFmpeg
-ffmpeg_options = {
-    'options': '-vn',
-}
-
-ytdl = yt_dlp.YoutubeDL(ytdl_options)
-
-# create YTDLSource class
-class YTDLSource(discord.PCMVolumeTransformer):
-    def __init__(self,
-                 source,
-                 *,
-                 data,
-                 volume=0.5):
-        
-        super().__init__(source, volume)
-        self.data = data
-        self.title = data.get('title')
-        self.url = data.get('url')
-    
-    # define method to get the source from a URL
-    @classmethod
-    async def from_url(cls,
-                       url, 
-                       *, 
-                       loop=None, 
-                       stream=False):
-        
-        loop = loop or asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
-        
-        if 'entries' in data:
-            # take first item from a playlist
-            data = data['entries'][0]
-        
-        filename = data['url'] if stream else ytdl.prepare_filename(data)
-        return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
-
+FFMPEG_OPTIONS = {"options": "-vn"}
+YDL_OPTIONS = {"format": "bestaudio",
+               "noplaylist": ""}
 
 # create Music class
 class Music(commands.Cog):
@@ -75,14 +25,77 @@ class Music(commands.Cog):
         self.client = client
         self.queue = []
         self.voice = None
+
+    ### HELPER COMMANDS ###
     
-    # define play_next method
-    def play_next(self):
-        if len(self.queue) == 0:
-            return
-        player = YTDLSource.from_url(self.queue[0], loop=self.client.loop)
-        self.voice.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
+    async def play_next(self, interaction: discord.Interaction):
+        if self.queue:
+            url, title = self.queue[0]
+            source = await discord.FFmpegOpusAudio.from_probe(url, **FFMPEG_OPTIONS)
+            interaction.guild.voice_client.play(source, after=lambda _: self.client.loop.create_task(self.play_next(interaction)))
+            await interaction.response.send_message(f"Now Playing: **{title}**")
+        elif not interaction.guild.voice_client.is_playing():
+            await interaction.guild.voice_client.disconnect()
+            await interaction.response.send_message(f"Queue is empty. Leaving voice channel.")
+
+    ### WIP COMMANDS ###
+        
+    # play command
+    @app_commands.command(name="play",
+                          description="Play audio from a youtube URL")
+    @app_commands.describe(search="Song to search for")
+    async def play(self, interaction: discord.Interaction,
+                   *, search: str):
+        
+        # check if bot is in a voice channel
+        if interaction.guild.voice_client:
+
+            # join same voice channel as user if not in one
+            if not interaction.guild.voice_client.channel == interaction.user.voice.channel:
+                
+                # send message
+                await interaction.response.send_message(f"Joining...")
+
+                # get channel
+                channel = interaction.user.voice.channel
+
+                # connect
+                await channel.connect()
+
+                # change voice attr. to current channel
+                self.voice = interaction.guild.voice_client
+
+            # get song info
+            async with interaction.channel.typing():
+
+                # use yt-dpl downloader
+                with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+                    info = ydl.extract_info(f"ytsearch:{search}", download=False)
+
+                    # if multiple results, get first
+                    if "entries" in info:
+                        info = info["entries"][0]
+                    
+                    # get url and title and add to queue
+                    url = info["url"]
+                    title = info["title"]
+                    self.queue.append(url, title)
+
+                    # send message
+                    await interaction.response.send_message(f"Added **{title}** to queue!")
+
+            # if bot is not playing, play next song
+            if not interaction.guild.voice_client.is_playing():
+                await self.play_next(interaction)
+
+        # if bot not in voice channel, send a message
+        else:
+            await interaction.response.send_message(f"Not currently in a voice channel! Please use `/join` to join a voice channel.")
+
+
     
+    ### WORKING COMMANDS ###
+
     # join voice channel
     @app_commands.command(name="join",
                           description="Joins a voice channel")
@@ -105,26 +118,6 @@ class Music(commands.Cog):
         else:
             await interaction.response.send_message(f"You must be in a voice channel to use this command!")
 
-    # play command
-    @app_commands.command(name="play",
-                          description="Play audio from a youtube URL")
-    @app_commands.describe(url="URL of the video to play")
-    async def play(self, interaction: discord.Interaction,
-                   url: str):
-        
-        # check if bot is in a voice channel
-        if interaction.guild.voice_client:
-
-            # check length of queue
-            if len(self.queue) == 0:
-                await interaction.response.send_message(f"Playing audio...")
-                self.queue.append(url)
-                player = await YTDLSource.from_url(url, loop=self.client.loop)
-                interaction.guild.voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
-
-        # if bot not in voice channel, send a message
-        else:
-            await interaction.response.send_message(f"Not currently in a voice channel! Please use `/join` to join a voice channel.")
 
     # view queue command
     @app_commands.command(name="view_queue",
@@ -136,20 +129,34 @@ class Music(commands.Cog):
 
         # if bot in vc
         else:
-            
             # if queue is empty, send message
             if len(self.queue) == 0:
                 queue_str = "No songs in queue!"
             
             # if queue is not empty, join song titles with newlines
             else:
-                queue_str = "\n".join([f"*{i}*. **{song}**" for i, song in enumerate(self.queue)])
+                queue_str = "\n".join([f"*{i}*. **{info["title"]}**" for i, info in enumerate(self.queue)])
 
         # create embed and send message
         emb = discord.Embed(title="**Current Queue**",
                             color=discord.Color.purple(),
                             description=queue_str)
         await interaction.response.send_message(embed=emb)
+
+    # clear queue command
+    @app_commands.command(name="clear_queue")
+    async def clear_queue(self, interaction: discord.Interaction):
+
+        # if queue exists
+        if len(self.queue) > 0:
+
+            # clear and message
+            self.queue.clear()
+            await interaction.response.send_message("Queue cleared!")
+        
+        # if queue does not exist, send message
+        else:
+            await interaction.response.send_message("There is no queue to clear!")
 
     # skip command
     @app_commands.command(name="skip",
