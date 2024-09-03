@@ -25,20 +25,29 @@ class Music(commands.Cog):
         self.client = client
         self.queue = []
         self.voice = None
-
-    ### HELPER COMMANDS ###
     
+    # play next song
     async def play_next(self, interaction: discord.Interaction):
+        # if queue exists
         if self.queue:
-            url, title = self.queue[0]
+
+            # grab url, title from queue
+            url, title = self.queue.pop(0)
+
+            # get song info in playable format
             source = await discord.FFmpegOpusAudio.from_probe(url, **FFMPEG_OPTIONS)
-            interaction.guild.voice_client.play(source, after=lambda _: self.client.loop.create_task(self.play_next(interaction)))
-            await interaction.response.send_message(f"Now Playing: **{title}**")
+
+            # play song, send message, but only if bot is in vc
+            if interaction.guild.voice_client:
+                interaction.guild.voice_client.play(source, after=lambda _: self.client.loop.create_task(self.play_next(interaction)))
+            else:
+                await interaction.channel.send(f"Bot not in voice channel!")
+            await interaction.channel.send(f"Now Playing: **{title}**")
+
+        # if queue is empty, disconnect from vc
         elif not interaction.guild.voice_client.is_playing():
             await interaction.guild.voice_client.disconnect()
-            await interaction.response.send_message(f"Queue is empty. Leaving voice channel.")
-
-    ### WIP COMMANDS ###
+            await interaction.channel.send(f"Queue is empty. Leaving voice channel.")
         
     # play command
     @app_commands.command(name="play",
@@ -79,7 +88,7 @@ class Music(commands.Cog):
                     # get url and title and add to queue
                     url = info["url"]
                     title = info["title"]
-                    self.queue.append(url, title)
+                    self.queue.append((url, title))
 
                     # send message
                     await interaction.response.send_message(f"Added **{title}** to queue!")
@@ -91,10 +100,6 @@ class Music(commands.Cog):
         # if bot not in voice channel, send a message
         else:
             await interaction.response.send_message(f"Not currently in a voice channel! Please use `/join` to join a voice channel.")
-
-
-    
-    ### WORKING COMMANDS ###
 
     # join voice channel
     @app_commands.command(name="join",
@@ -120,9 +125,9 @@ class Music(commands.Cog):
 
 
     # view queue command
-    @app_commands.command(name="view_queue",
+    @app_commands.command(name="queue",
                           description="Shows current queue")
-    async def view_queue(self, interaction: discord.Interaction):
+    async def queue(self, interaction: discord.Interaction):
         # if bot not in vc, send message
         if not interaction.guild.voice_client:
             await interaction.response.send_message(f"Not currently in a voice channel! Please use `/join` to join a voice channel.")
@@ -135,16 +140,17 @@ class Music(commands.Cog):
             
             # if queue is not empty, join song titles with newlines
             else:
-                queue_str = "\n".join([f"*{i}*. **{info["title"]}**" for i, info in enumerate(self.queue)])
+                queue_str = "\n".join([f"*{i}*: **{info[1]}**" for i, info in enumerate(self.queue)])
 
-        # create embed and send message
-        emb = discord.Embed(title="**Current Queue**",
-                            color=discord.Color.purple(),
-                            description=queue_str)
-        await interaction.response.send_message(embed=emb)
+            # create embed and send message
+            emb = discord.Embed(title="**Next Up**",
+                                color=discord.Color.purple(),
+                                description=queue_str)
+            await interaction.response.send_message(embed=emb)
 
     # clear queue command
-    @app_commands.command(name="clear_queue")
+    @app_commands.command(name="clear_queue",
+                          description="Clears the current queue")
     async def clear_queue(self, interaction: discord.Interaction):
 
         # if queue exists

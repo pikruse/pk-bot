@@ -11,9 +11,6 @@ from dotenv import load_dotenv
 from discord import app_commands
 from discord.ext import tasks, commands
 
-# custom imports
-from cogs.music import YTDLSource
-
 #####################
 ### INITIAL SETUP ###
 #####################
