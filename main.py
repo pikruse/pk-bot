@@ -161,13 +161,15 @@ async def on_member_remove(member):
 # add a simple hello command
 @tree.command(
     name="hello",
-    description="Say Hello!")
+    description="Say Hello!",
+    guild = discord.Object(id=GUILD))
 async def hello(interaction: discord.Interaction):
     await interaction.response.send_message(f"Hello, {interaction.user.mention}!")
 
 @tree.command(
     name="kick",
-    description="Kicks a user (admin only)"
+    description="Kicks a user (admin only)",
+    guild = discord.Object(id=GUILD)
 )
 async def kick(interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
     if not interaction.user.guild_permissions.administrator:
@@ -178,7 +180,8 @@ async def kick(interaction: discord.Interaction, member: discord.Member, reason:
 
 @tree.command(
     name="timeout",
-    description="Times out a user (admin only)"
+    description="Times out a user (admin only)",
+    guild = discord.Object(id=GUILD)
 )
 async def timeout(interaction: discord.Interaction, 
                   member: discord.Member, 
@@ -192,7 +195,9 @@ async def timeout(interaction: discord.Interaction,
 
 # add a command to display the bot's latency in a graph
 @tree.command(name="ping", 
-              description="Displays the bot's latency in graph or text format")
+              description="Displays the bot's latency in graph or text format",
+              guild = discord.Object(id=GUILD)
+              )
 async def ping(interaction: discord.Interaction,
                         format: str = "text"):
     if format == "text":
@@ -245,7 +250,8 @@ async def ping(interaction: discord.Interaction,
 # display the pfp of the user
 @tree.command(
     name="pfp",
-    description="Displays user's pfp")
+    description="Displays user's pfp",
+    guild = discord.Object(id=GUILD))
 async def pfp(interaction: discord.Interaction, member: discord.Member = None):
     if member is None:
         await interaction.response.send_message("Error: Please mention a user.")
@@ -254,7 +260,9 @@ async def pfp(interaction: discord.Interaction, member: discord.Member = None):
     user_avatar_url = member.display_avatar.url
     await interaction.response.send_message(f"** @{member.name} pfp:** {user_avatar_url}")
 
-@tree.command(name='credits', description='Returns the bot credits')
+@tree.command(name='credits', 
+              description='Returns the bot credits',
+              guild = discord.Object(id=GUILD))
 async def credits(interaction: discord.Interaction):
     emb = discord.Embed(title="Credits",
                         description="This bot was created by @prod_pk, @obkruse, and @kamel",
@@ -263,7 +271,8 @@ async def credits(interaction: discord.Interaction):
 
 # This sends or updates an embed message with a description of the roles.
 @tree.command(name="embed",
-              description="Send an embed message with roles")
+              description="Send an embed message with roles",
+              guild = discord.Object(id=GUILD))
 async def embed(ctx: commands.Context):
     channel = client.get_channel(1276157069095080067)
     emb = discord.Embed(title="React to this message to get your roles!",
