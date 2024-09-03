@@ -31,29 +31,6 @@ tree = client.tree
 latency_values = []
 timestamps = []
 
-# music options
-# Setup Youtube DL library
-ytdl_options = {
-    'format': 'bestaudio/best',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    'restrictfilenames': True,
-    'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': True,
-    'no_warnings': True,
-    'default_search': 'auto',
-    'source_address': '0.0.0.0',  # bind to ipv4 since ipv6 addresses cause issues sometimes
-}
-
-# setup FFmpeg
-ffmpeg_options = {
-    'options': '-vn',
-}
-
-ytdl = yt_dlp.YoutubeDL(ytdl_options)
-
 # discord opus
 discord.opus.load_opus('libopus.dylib')
 if not discord.opus.is_loaded():
@@ -70,6 +47,7 @@ async def record_latency():
         latency_values.pop(0)
         timestamps.pop(0)
 
+# load all cogs
 async def load_cogs():
     # load all cogs
     for filename in os.listdir('./cogs'):
@@ -80,6 +58,12 @@ async def load_cogs():
             except Exception as e:
                 print(f'Failed to load {filename} cog: {e}')
 
+# setup hook to copy global commands to the guild
+async def setup_hook():
+    # This copies the global commands over to your guild.
+    client.tree.copy_global_to(guild=discord.Object(GUILD))
+    await client.tree.sync(guild=discord.Object(GUILD))
+
 ##############
 ### EVENTS ###
 ##############
@@ -87,9 +71,16 @@ async def load_cogs():
 # on_ready event is triggered when the bot is ready to work
 @client.event
 async def on_ready():
+
+    # load all cogs
+    await load_cogs()
+    
     # sync
-    await tree.sync(guild = discord.Object(id=GUILD))
-    print(f'Command tree synced with guild {GUILD}.')
+    try:
+        synced = await client.tree.sync()
+        print(f"synced {len(synced)} commands")
+    except Exception as e:
+        print(e)
 
     # print "ready" in the console when the bot is ready to work
     print("ready")

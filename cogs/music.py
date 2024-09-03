@@ -10,8 +10,6 @@ import asyncio
 # options
 load_dotenv()
 
-os.chdir("../")
-GUILD = os.getenv('DISCORD_GUILD')
 intents = discord.Intents.all()
 
 # music options
@@ -77,7 +75,7 @@ class Music(commands.Cog):
         self.client = client
         self.queue = []
         self.voice = None
-
+    
     # define play_next method
     def play_next(self):
         if len(self.queue) == 0:
@@ -172,7 +170,7 @@ class Music(commands.Cog):
                 self.queue.pop(0)
 
                 # activate the next song in queue
-                play_next(self.queue, interaction.guild.voice_client)
+                # play_next(self.queue, interaction.guild.voice_client)
 
                 # send message
                 await interaction.response.send_message(f"Skipped!")
@@ -242,7 +240,6 @@ class Music(commands.Cog):
         # if bot not in vc
         else:
             await interaction.response.send_message(f"Not currently in a voice channel! Please use `/join` to join a voice channel.")
-
     
 # create setup function for cog
 async def setup(bot):
