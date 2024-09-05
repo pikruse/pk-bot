@@ -8,8 +8,6 @@ import yt_dlp
 import asyncio
 
 # options
-load_dotenv()
-
 intents = discord.Intents.all()
 
 # music options
