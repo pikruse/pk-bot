@@ -18,14 +18,22 @@ class Mail(commands.Cog):
     @app_commands.command(name="send_loops",
                           description="Send dropbox link for loops to a user")
     async def send_loops(self, interaction: discord.Interaction, link: str):
-        
 
+        # check if link is valid
+
+        
         return
     
     @app_commands.command(name="send_beats",
                           description="Send dropbox link for beats to a user")
     async def send_beats(self, interaction: discord.Interaction, link: str):
+
+        # check if link is valid
+
+
         return
+    
+
     
 
 
