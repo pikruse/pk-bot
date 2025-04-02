@@ -17,9 +17,13 @@ FFMPEG_OPTIONS = {
     'options': '-vn -filter:a "volume=0.3"'
 }
 
-YDL_OPTIONS = {"format": "bestaudio",
-               "noplaylist": "",
-               "cookies": "cookies.txt"}
+YDL_OPTIONS = {"format": "bestaudio/best",
+               "noplaylist": True,
+               "cookiefile": "cookies.txt",
+               "default_search": "ytsearch",
+               "nocheckcertificate": True,
+               "ignoreerrors": True,
+               "quiet": True,}
 
 # create Music class
 class Music(commands.Cog):
@@ -27,70 +31,76 @@ class Music(commands.Cog):
     # define init method
     def __init__(self, client):
         self.client = client
-        self.queue = []
-        self.voice = None
-        self.current_source = None
+        self.queues = {} # stores queues per guild
+        self.text_channels = {} # stores text channels per guild
     
-    # play next song
+    def get_queue(self, guild_id):
+        if guild_id not in self.queues:
+            self.queues[guild_id] = []
+        return self.queues[guild_id]
+    
     async def play_next(self, interaction: discord.Interaction):
-        if self.queue:
+        guild_id = interaction.guild.id
+        queue = self.get_queue(guild_id)
+        
+        if queue:
             url, title = self.queue.pop(0)
+            voice_client = interaction.guild.voice_client
             
-            # Create PCM audio source
-            source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
-            
-            if interaction.guild.voice_client:
-                interaction.guild.voice_client.play(
-                    source,
-                    after=lambda _: self.client.loop.create_task(self.play_next(interaction))
-                )
-            await interaction.channel.send(f"Now Playing: **{title}**")
-        elif interaction.guild.voice_client and not interaction.guild.voice_client.is_playing():
+            try:
+                source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
+                source = PCMVolumeTransformer(source, volume=0.3)
+
+                def after_play(error):
+                    if error:
+                        print(f"Player error: {error}")
+                    self.client.loop.create_task(self.play_next(interaction))
+                
+                voice_client.play(source, after=after_play)
+                await self.text_channels[guild_id].send(f"Now Playing: **{title}**")
+            except Exception as e:
+                await self.text_channels[guild_id].send(f"Error playing song: {e}")
+                await self.play_next(interaction)
+        
+        elif interaction.guild.voice_client:
             await interaction.guild.voice_client.disconnect()
-            await interaction.channel.send("Queue empty. Leaving voice channel.")
+            await self.text_channels[guild_id].send("Queue is empty. Disconnected from voice channel.")
 
     # play command
     @app_commands.command(name="play",
-                          description="Play audio from a youtube URL")
-    @app_commands.describe(search="Song to search for")
-    async def play(self, interaction: discord.Interaction, *, search: str):
+                          description="Play audio from YouTube")
+    @app_commands.describe(search="Song to name or URL")
+    async def play(self, interaction: discord.Interaction, *, query: str):
         await interaction.response.defer()  # Defer FIRST THING
-        
-        # make sure user is in vc
+        self.text_channels[interaction.guild.id] = interaction.channel
+
         if not interaction.user.voice:
             return await interaction.followup.send("You need to be in a voice channel to play music!")
-        # get vc
-        voice_client = interaction.guild.voice_client
+        
+        
 
         try:
-            if not voice_client:
-                # Join channel if not connected
-                channel = interaction.user.voice.channel
-                voice_client = await channel.connect(timeout=10.0)
-                self.voice = voice_client
-            elif voice_client.channel != interaction.user.voice.channel:
-                # Move to new channel if in different one
+            voice_client = interaction.guild.voice_client or await interaction.user.voice.channel.connect()
+            
+            if voice_client.channel != interaction.user.voice_channel:
                 await voice_client.move_to(interaction.user.voice.channel)
-        except Exception as e:
-            return await interaction.followup.send(f"Failed to join voice channel: {str(e)}")
-
-        # Now process the song
-        async with interaction.channel.typing():
+            
             with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-                info = ydl.extract_info(f"ytsearch:{search}", download=False)
+                info = ydl.extract_info(query, download=False)
+
+                if 'entries' in info:
+                    entry = info['entries'][0]
+                else:
+                    entry = info
                 
-                if "entries" in info:
-                    info = info["entries"][0]
-                    
-                url = info["url"]
-                title = info["title"]
-                self.queue.append((url, title))
+                self.get_queue(interaction.guild.id).append((entry['url'], entry['title']))
+                await interaction.followup.send(f"Added **{entry['title']}** to queue!")
 
-        await interaction.followup.send(f"Added **{title}** to queue!")
-
-        # Start playing if not already
-        if not voice_client.is_playing():
-            await self.play_next(interaction)
+                if not voice_client.is_playing():
+                    await self.play_next(interaction)
+        
+        except Exception as e:
+            await interaction.followup.send(f"Error: {str(e)}")
 
     # join voice channel
     @app_commands.command(name="join",
@@ -155,29 +165,14 @@ class Music(commands.Cog):
     @app_commands.command(name="skip",
                   description="Skips the current audio")
     async def skip(self, interaction: discord.Interaction):
+        await interaction.response.defer()
 
-        # if bot in vc
-        if interaction.guild.voice_client:
-
-            # if queue is empty, send message
-            if len(self.queue) == 0:
-                await interaction.response.send_message(f"No songs in queue!")
-            
-            # if queue is not empty
-            else:
-
-                # remove first item from queue and skip
-                self.queue.pop(0)
-
-                # activate the next song in queue
-                # play_next(self.queue, interaction.guild.voice_client)
-
-                # send message
-                await interaction.response.send_message(f"Skipped!")
-        
-        # if bot not in vc
+        voice_client = interaction.guild.voice_client()
+        if voice_client and voice_client.is_playing():
+            voice_client.stop()
+            await interaction.followup.send("Skipped current audio!")
         else:
-            await interaction.response.send_message(f"Not currently in a voice channel! Please use `/join` to join a voice channel.")
+            await interaction.followup.send("Nothing is playing!")
 
     # pause command
     @app_commands.command(name="pause",
@@ -227,20 +222,18 @@ class Music(commands.Cog):
 
     # stop command
     @app_commands.command(name = "stop",
-                          description = "Stops audio")
+                          description = "Stop and clear queue")
     async def stop(self, interaction: discord.Interaction):
+        await interaction.response.defer()
 
-        # if bot is in vc
+        guild_id = interaction.guild.id
+        self.queues[guild_id] = []
         if interaction.guild.voice_client:
-
-            # disconnect from voice channel and send message
             await interaction.guild.voice_client.disconnect()
-            await interaction.response.send_message(f"Stopped audio!")
-        
-        # if bot not in vc
+            await interaction.followup.send("Stopped and cleared queue!")
         else:
-            await interaction.response.send_message(f"Not currently in a voice channel! Please use `/join` to join a voice channel.")
-    
+            await interaction.followup.send("Not in a voice channel!")
+
 # create setup function for cog
 async def setup(bot):
     await bot.add_cog(Music(bot))
