@@ -21,7 +21,7 @@ class Mail(commands.Cog):
 
         # check if link is valid
 
-        
+
         return
     
     @app_commands.command(name="send_beats",
@@ -30,6 +30,7 @@ class Mail(commands.Cog):
 
         # check if link is valid
 
+        
 
         return
     

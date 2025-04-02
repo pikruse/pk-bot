@@ -1,3 +1,4 @@
 .env
 *.png
 template.py
+cookies.txt
