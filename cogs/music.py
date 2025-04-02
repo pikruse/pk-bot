@@ -1,6 +1,7 @@
 # necessary imports
 import discord
 from discord import app_commands
+from discord import PCMVolumeTransformer
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
@@ -11,9 +12,14 @@ import asyncio
 intents = discord.Intents.all()
 
 # music options
-FFMPEG_OPTIONS = {"options": "-vn"}
+FFMPEG_OPTIONS = {
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+    'options': '-vn -filter:a "volume=0.3"'
+}
+
 YDL_OPTIONS = {"format": "bestaudio",
-               "noplaylist": ""}
+               "noplaylist": "",
+               "cookies": "cookies.txt"}
 
 # create Music class
 class Music(commands.Cog):
@@ -23,105 +29,88 @@ class Music(commands.Cog):
         self.client = client
         self.queue = []
         self.voice = None
+        self.current_source = None
     
     # play next song
     async def play_next(self, interaction: discord.Interaction):
-        # if queue exists
         if self.queue:
-
-            # grab url, title from queue
             url, title = self.queue.pop(0)
-
-            # get song info in playable format
-            source = await discord.FFmpegOpusAudio.from_probe(url, **FFMPEG_OPTIONS)
-
-            # play song, send message, but only if bot is in vc
+            
+            # Create PCM audio source
+            source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
+            
             if interaction.guild.voice_client:
-                interaction.guild.voice_client.play(source, after=lambda _: self.client.loop.create_task(self.play_next(interaction)))
-            else:
-                await interaction.channel.send(f"Bot not in voice channel!")
+                interaction.guild.voice_client.play(
+                    source,
+                    after=lambda _: self.client.loop.create_task(self.play_next(interaction))
+                )
             await interaction.channel.send(f"Now Playing: **{title}**")
-
-        # if queue is empty, disconnect from vc
-        elif not interaction.guild.voice_client.is_playing():
+        elif interaction.guild.voice_client and not interaction.guild.voice_client.is_playing():
             await interaction.guild.voice_client.disconnect()
-            await interaction.channel.send(f"Queue is empty. Leaving voice channel.")
-        
+            await interaction.channel.send("Queue empty. Leaving voice channel.")
+
     # play command
     @app_commands.command(name="play",
                           description="Play audio from a youtube URL")
     @app_commands.describe(search="Song to search for")
-    async def play(self, interaction: discord.Interaction,
-                   *, search: str):
+    async def play(self, interaction: discord.Interaction, *, search: str):
+        await interaction.response.defer()  # Defer FIRST THING
         
-        # check if bot is in a voice channel
-        if interaction.guild.voice_client:
+        # make sure user is in vc
+        if not interaction.user.voice:
+            return await interaction.followup.send("You need to be in a voice channel to play music!")
+        # get vc
+        voice_client = interaction.guild.voice_client
 
-            # join same voice channel as user if not in one
-            if not interaction.guild.voice_client.channel == interaction.user.voice.channel:
-                
-                # send message
-                await interaction.response.send_message(f"Joining...")
-
-                # get channel
+        try:
+            if not voice_client:
+                # Join channel if not connected
                 channel = interaction.user.voice.channel
+                voice_client = await channel.connect(timeout=10.0)
+                self.voice = voice_client
+            elif voice_client.channel != interaction.user.voice.channel:
+                # Move to new channel if in different one
+                await voice_client.move_to(interaction.user.voice.channel)
+        except Exception as e:
+            return await interaction.followup.send(f"Failed to join voice channel: {str(e)}")
 
-                # connect
-                await channel.connect()
-
-                # change voice attr. to current channel
-                self.voice = interaction.guild.voice_client
-
-            # get song info
-            async with interaction.channel.typing():
-
-                # use yt-dpl downloader
-                with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-                    info = ydl.extract_info(f"ytsearch:{search}", download=False)
-
-                    # if multiple results, get first
-                    if "entries" in info:
-                        info = info["entries"][0]
+        # Now process the song
+        async with interaction.channel.typing():
+            with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+                info = ydl.extract_info(f"ytsearch:{search}", download=False)
+                
+                if "entries" in info:
+                    info = info["entries"][0]
                     
-                    # get url and title and add to queue
-                    url = info["url"]
-                    title = info["title"]
-                    self.queue.append((url, title))
+                url = info["url"]
+                title = info["title"]
+                self.queue.append((url, title))
 
-                    # send message
-                    await interaction.response.send_message(f"Added **{title}** to queue!")
+        await interaction.followup.send(f"Added **{title}** to queue!")
 
-            # if bot is not playing, play next song
-            if not interaction.guild.voice_client.is_playing():
-                await self.play_next(interaction)
-
-        # if bot not in voice channel, send a message
-        else:
-            await interaction.response.send_message(f"Not currently in a voice channel! Please use `/join` to join a voice channel.")
+        # Start playing if not already
+        if not voice_client.is_playing():
+            await self.play_next(interaction)
 
     # join voice channel
     @app_commands.command(name="join",
                           description="Joins a voice channel")
     async def join(self, interaction: discord.Interaction):
-
-        # check if user is in a voice channel
+        await interaction.response.defer()  # Defer immediately
+        
         if interaction.user.voice:
-
-            # send message
-            await interaction.response.send_message(f"Joining...")
-
-            # get channel
-            channel = interaction.user.voice.channel
-
-            # connect
-            await channel.connect()
-
-            # change voice attr. to current channel
-            self.voice = interaction.guild.voice_client
+            try:
+                channel = interaction.user.voice.channel
+                await channel.connect(timeout=10.0)  # Increased timeout
+                self.voice = interaction.guild.voice_client
+                await interaction.followup.send(f"Joined {channel.name}!")
+            except asyncio.TimeoutError:
+                await interaction.followup.send("Connection timed out. Please try again.")
+            except Exception as e:
+                await interaction.followup.send(f"Failed to join: {str(e)}")
         else:
-            await interaction.response.send_message(f"You must be in a voice channel to use this command!")
-
-
+            await interaction.followup.send("You must be in a voice channel!")
+    
     # view queue command
     @app_commands.command(name="queue",
                           description="Shows current queue")
