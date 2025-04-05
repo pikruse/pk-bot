@@ -91,7 +91,7 @@ class Music(commands.Cog):
             voice_client.stop() # This will trigger the 'after' callback if one was running
 
         if queue:
-            url, title = queue.pop(0)
+            url, title, headers = queue.pop(0)
             self.current_song[guild_id] = (url, title) # Store current song info
 
             try:
@@ -269,32 +269,41 @@ class Music(commands.Cog):
     # view queue command
     @app_commands.command(name="queue", description="Shows the current song queue")
     async def queue(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         guild_id = interaction.guild.id
         queue = self.get_queue(guild_id)
-        current = self.current_song.get(guild_id)
-
-        if not queue and not current:
-             return await interaction.response.send_message(" Queue is empty!")
-
-        embed = discord.Embed(title="🎵 Music Queue 🎵", color=discord.Color.purple())
-
+        current = self.current_song.get(guild_id, ())
+        
+        embed = discord.Embed(title="🎵 Music Queue", color=discord.Color.blurple())
+        
+        # Handle current song safely
         if current:
-            embed.add_field(name="▶️ Now Playing", value=f"**{current[1]}**", inline=False)
-
+            try:
+                # Support both (url, title) and (url, title, headers) formats
+                current_title = current[1] if len(current) >= 2 else "Unknown Title"
+            except (IndexError, TypeError):
+                current_title = "Unknown Title"
+            embed.add_field(name="▶️ Now Playing", value=f"**{current_title}**", inline=False)
+        
+        # Build queue list with version-tolerant unpacking
         if queue:
-            queue_str = ""
-            # Limit display length
-            display_limit = 10
-            for i, (_, title) in enumerate(queue[:display_limit], start=1):
-                queue_str += f"`{i}.` **{title}**\n"
-            if len(queue) > display_limit:
-                 queue_str += f"\n...and {len(queue) - display_limit} more."
-
-            embed.add_field(name=" MNext Up", value=queue_str if queue_str else "No songs in queue", inline=False)
+            queue_list = []
+            for idx, item in enumerate(queue[:10], start=1):
+                try:
+                    # Support both item formats
+                    title = item[1] if len(item) >= 2 else "Unknown Title"
+                except (IndexError, TypeError):
+                    title = "Unknown Title"
+                queue_list.append(f"{idx}. **{title}**")
+            
+            if len(queue) > 10:
+                queue_list.append(f"\n...and {len(queue)-10} more")
+            
+            embed.add_field(name="🔜 Up Next", value="\n".join(queue_list), inline=False)
         else:
-             embed.add_field(name=" MNext Up", value="No songs in queue", inline=False)
-
-        await interaction.response.send_message(embed=embed)
+            embed.description = "🎶 The queue is empty!"
+        
+        await interaction.followup.send(embed=embed)
 
 
     # clear queue command
