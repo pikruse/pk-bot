@@ -22,18 +22,21 @@ FFMPEG_OPTIONS = {
     'options': '-vn'
 }
 
+# Update YDL_OPTIONS to get direct audio streams
 YDL_OPTIONS = {
-    "format": "bestaudio/best",
-    "noplaylist": False, # Set to False to allow extracting playlist info if needed
-    "cookiefile": "cookies.txt", # Make sure this file exists or handle absence
-    "default_search": "ytsearch",
-    "nocheckcertificate": True,
-    "ignoreerrors": True, # Be careful with this, might hide useful errors
-    "quiet": True,
-    "extract_flat": "discard_in_playlist", # Avoids fetching full playlist details initially unless needed
-    "lazy_playlist": True
+    'format': 'bestaudio/best',
+    'noplaylist': True,
+    'cookiefile': 'cookies.txt',
+    'default_search': 'ytsearch',
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'quiet': True,
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'opus',
+        'preferredquality': '192',
+    }]
 }
-
 
 # create Music class
 class Music(commands.Cog):
@@ -138,120 +141,85 @@ class Music(commands.Cog):
             self.cleanup_guild(guild_id) # Clean up state
 
     # play command
-    @app_commands.command(name="play", description="Play audio from YouTube/other sources or add to queue")
-    @app_commands.describe(query="Song name or URL (inc. playlists)")
+    @app_commands.command(name="play", description="Play audio from YouTube")
+    @app_commands.describe(query="Song name or URL")
     async def play(self, interaction: discord.Interaction, *, query: str):
-        # Defer interaction early
         await interaction.response.defer()
         guild_id = interaction.guild.id
-        self.text_channels[guild_id] = interaction.channel.id # Store channel ID for messages
+        self.text_channels[guild_id] = interaction.channel.id
 
-        # --- Voice Channel Checks and Connection ---
+        # Validate user voice state
         if not interaction.user.voice:
-            return await interaction.followup.send("🔊 You need to be in a voice channel to play music!")
-
-        user_channel = interaction.user.voice.channel
-        voice_client = interaction.guild.voice_client
+            return await interaction.followup.send("🔊 You need to be in a voice channel!")
 
         try:
+            # Connect to voice channel
+            voice_client = interaction.guild.voice_client
             if not voice_client:
-                logging.info(f"Connecting to {user_channel.name} in guild {guild_id}")
-                voice_client = await user_channel.connect(timeout=15.0)
-            elif voice_client.channel != user_channel:
-                logging.info(f"Moving to {user_channel.name} in guild {guild_id}")
-                await voice_client.move_to(user_channel)
-        except asyncio.TimeoutError:
-             return await interaction.followup.send("⌛ Connection timed out. Please try again.")
-        except discord.ClientException as e:
-             return await interaction.followup.send(f"⚠️ Error connecting/moving: {e}")
-        except Exception as e:
-            logging.error(f"Unexpected error during connect/move in guild {guild_id}: {e}", exc_info=True)
-            return await interaction.followup.send("❓ An unexpected error occurred while trying to join the voice channel.")
+                voice_client = await interaction.user.voice.channel.connect(timeout=15)
+            elif voice_client.channel != interaction.user.voice.channel:
+                await voice_client.move_to(interaction.user.voice.channel)
 
-        # --- Music Fetching and Queuing ---
-        message = await interaction.followup.send(f"⏳ Searching for `{query}`...") # Initial feedback
-
-        try:
-            queue = self.get_queue(guild_id)
-            songs_added = [] # Keep track of titles added in this command run
-
-            # Run yt-dlp in executor
+            # Extract audio information
             with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
                 loop = asyncio.get_event_loop()
                 info = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
 
-            if not info:
-                return await message.edit(content=f"Could not find anything for query: `{query}`")
+                # Get first valid entry
+                if 'entries' in info:
+                    entry = next((e for e in info['entries'] if e and e.get('url')), None)
+                else:
+                    entry = info
 
-            # --- Process Results ---
-            is_playlist_like = 'entries' in info and info['entries'] # Playlist URL or Search Result
+                if not entry:
+                    return await interaction.followup.send("❌ No playable content found!")
 
-            if is_playlist_like:
-                entries_to_process = info['entries']
-                original_extractor = info.get('extractor_key', '').lower()
-                is_search_result = 'search' in original_extractor # Detect if it was a ytsearch result
+                # Get direct audio stream URL and headers
+                audio_format = next((
+                    f for f in entry.get('formats', [])
+                    if f.get('acodec') != 'none' 
+                    and f.get('protocol') in ('https', 'http_dash_segments')
+                ), None)
 
-                await message.edit(content=f"Processing {len(entries_to_process)} results for `{info.get('title', query)}`...")
+                if not audio_format:
+                    return await interaction.followup.send("❌ Could not find playable audio format!")
 
-                for entry in entries_to_process:
-                    # CRITICAL CHECK: Ensure entry is valid and has a streamable URL
-                    if not isinstance(entry, dict) or not entry.get('url'):
-                        logging.debug(f"Skipping non-video/non-streamable entry in guild {guild_id}: {entry.get('title', 'N/A')}")
-                        continue # Skip channels, unavailable videos, etc.
+                song_url = audio_format['url']
+                song_title = entry.get('title', 'Unknown Track')
+                headers = entry.get('http_headers', {})
 
-                    # Found a playable video
-                    song_url = entry['url']
-                    song_title = entry.get('title', 'Unknown Title')
-                    queue.append((song_url, song_title))
-                    songs_added.append(song_title)
+            # Build FFmpeg options with headers
+            header_list = [f"{k}: {v}" for k, v in headers.items()]
+            header_str = "\\r\\n".join(header_list)
+            ffmpeg_options = {
+                'before_options': (
+                    f"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+                    f"-headers '{header_str}'"
+                ),
+                'options': '-vn -acodec libopus -b:a 192k -f opus'
+            }
 
-                    # If it was a search, only add the FIRST valid video found
-                    if is_search_result:
-                        logging.info(f"Added first search result '{song_title}' for query '{query}' in guild {guild_id}")
-                        break # Stop processing entries after finding the first video for search
+            # Create audio source and play
+            source = discord.FFmpegPCMAudio(song_url, **ffmpeg_options)
+            volume_source = PCMVolumeTransformer(source, volume=0.3)
 
-                # --- Feedback after processing playlist/search ---
-                if not songs_added:
-                    await message.edit(content=f"No playable videos found in the results for `{query}`.")
-                elif is_search_result: # Added one song from search
-                    await message.edit(content=f"Added **{songs_added[0]}** to queue (from search).")
-                else: # Added songs from a playlist URL
-                    await message.edit(content=f"Added **{len(songs_added)}** songs from playlist **{info.get('title', 'Unknown Playlist')}** to queue.")
-
-            elif 'url' in info: # Likely a single video URL
-                song_url = info.get('url')
-                song_title = info.get('title', 'Unknown Title')
-                if not song_url: # Should be rare if 'url' key exists, but check anyway
-                     return await message.edit(content=f"Failed to get a playable URL for: `{song_title or query}`")
-
-                queue.append((song_url, song_title))
-                songs_added.append(song_title)
-                await message.edit(content=f"Added **{song_title}** to queue!")
-
-            else: # Unrecognized format from yt-dlp
-                 logging.warning(f"Unusual yt-dlp info format for query '{query}' in guild {guild_id}: {info}")
-                 return await message.edit(content=f"Could not understand the results for: `{query}`")
-
-            # --- Start Playback if needed ---
-            if songs_added and not voice_client.is_playing() and not voice_client.is_paused():
+            # Add to queue or play immediately
+            queue = self.get_queue(guild_id)
+            queue.append((song_url, song_title, headers))
+            
+            if not voice_client.is_playing():
                 await self.play_next(guild_id)
-            elif not songs_added:
-                # If nothing was added, no need to start playback. The message.edit above handled feedback.
-                pass
+                await interaction.followup.send(f"🎶 Now playing: **{song_title}**")
+            else:
+                await interaction.followup.send(f"🎧 Added to queue: **{song_title}**")
 
         except yt_dlp.utils.DownloadError as e:
-             logging.warning(f"yt-dlp download error in guild {guild_id} for query '{query}': {e}")
-             # Check if the message object still exists before editing
-             if message:
-                 await message.edit(content=f"Error fetching video/playlist info: `{e}`")
-             else: # If message somehow got lost, send to channel
-                 await interaction.channel.send(f"Error fetching video/playlist info: `{e}`")
+            await interaction.followup.send(f"❌ YouTube download error: {str(e)}")
+        except discord.ClientException as e:
+            await interaction.followup.send(f"🔇 Audio error: {str(e)}")
         except Exception as e:
-            logging.error(f"Error in play command for guild {guild_id}: {e}", exc_info=True)
-            if message:
-                await message.edit(content=f"An unexpected error occurred: `{e}`")
-            else:
-                await interaction.channel.send(f"An unexpected error occurred: `{e}`")
+            logging.error(f"Play error: {str(e)}", exc_info=True)
+            await interaction.followup.send("⚠️ Failed to play audio. Please try again.")
 
     # join voice channel
     @app_commands.command(name="join", description="Joins your current voice channel")
@@ -341,7 +309,7 @@ class Music(commands.Cog):
 
     # skip command
     @app_commands.command(name="skip", description="Skips the current song")
-    async def skip(self, interaction: discord.Interaction):
+    async def skip(self, interaction: discord.Interaction): 
         await interaction.response.defer()
         voice_client = interaction.guild.voice_client
         guild_id = interaction.guild.id
