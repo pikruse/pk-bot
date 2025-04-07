@@ -48,12 +48,8 @@ async def record_latency():
 async def load_cogs():
     # load all cogs
     for filename in os.listdir('./cogs'):
-        if filename.endswith('.py'):
-            try:
-                await client.load_extension(f'cogs.{filename[:-3]}')
-                print(f'{filename} cog loaded.')
-            except Exception as e:
-                print(f'Failed to load {filename} cog: {e}')
+        if filename.endswith('.py') and not filename.startswith('__'):
+            await client.load_extension(f'cogs.{filename[:-3]}')
 
 # setup hook to copy global commands to the guild
 async def setup_hook():
