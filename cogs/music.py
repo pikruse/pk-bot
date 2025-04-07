@@ -38,6 +38,56 @@ YDL_OPTIONS = {
     }]
 }
 
+class MusicControlView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label="⏭️ Skip", style=discord.ButtonStyle.secondary)
+    async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        cog = interaction.client.get_cog("Music")
+        if not cog:
+            await interaction.response.send_message("Music system is not available.", ephemeral=True)
+            return
+        result = cog.handle_skip(interaction.guild, interaction.user)
+        await interaction.response.send_message(content=result, ephemeral=False)
+
+    @discord.ui.button(label="⏯️ Pause/Resume", style=discord.ButtonStyle.primary)
+    async def pause_resume_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        cog = interaction.client.get_cog("Music")
+        if not cog:
+            await interaction.response.send_message("Music system is not available.", ephemeral=True)
+            return
+        
+        voice_client = interaction.guild.voice_client
+        if not voice_client:
+            await interaction.response.send_message("Not connected to a voice channel.", ephemeral=True)
+            return
+        
+        if interaction.user.voice is None or interaction.user.voice_channel != voice_client.channel:
+            await interaction.response.send_message("You must be in the same voice channel.", ephemeral=True)
+            return
+        
+        if voice_client.is_playing():
+            voice_client.pause()
+            await interaction.response.send_message("⏸️ Paused.", ephemeral=False)
+
+        elif voice_client.is_paused():
+            voice_client.resume()
+            await interaction.response.send_message("▶️ Resumed.", ephemeral=False)
+        
+        else:
+            await interaction.response.send_message("Nothing is playing to pause/resume.", ephemeral=True)
+
+    @discord.ui.button(label="⏹️ Stop", style=discord.ButtonStyle.danger)
+    async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        cog = interaction.client.get_cog("Music")
+        if not cog:
+            await interaction.response.send_message("Music system is not available.", ephemeral=True)
+            return
+        result = await cog.handle_stop(interaction.guild, interaction.user)
+        await interaction.response.send_message(content=result, ephemeral=False)
+
+
 # create Music class
 class Music(commands.Cog):
 
@@ -209,9 +259,9 @@ class Music(commands.Cog):
             
             if not voice_client.is_playing():
                 await self.play_next(guild_id)
-                await interaction.followup.send(f"🎶 Now playing: **{song_title}**")
+                await interaction.followup.send(f"🎶 Now playing: **{song_title}**", view=MusicControlView())
             else:
-                await interaction.followup.send(f"🎧 Added to queue: **{song_title}**")
+                await interaction.followup.send(f"🎧 Added to queue: **{song_title}**", view=MusicControlView())
 
         except yt_dlp.utils.DownloadError as e:
             await interaction.followup.send(f"❌ YouTube download error: {str(e)}")
@@ -303,8 +353,7 @@ class Music(commands.Cog):
         else:
             embed.description = "🎶 The queue is empty!"
         
-        await interaction.followup.send(embed=embed)
-
+        await interaction.followup.send(embed=embed, view=MusicControlView())
 
     # clear queue command
     @app_commands.command(name="clear", description="Clears the current song queue")
@@ -332,6 +381,18 @@ class Music(commands.Cog):
             # play_next will be called automatically by the 'after' callback
         else:
             await interaction.followup.send("❓ Nothing is playing to skip!")
+
+    # skip helper
+    def handle_skip(self, guild: discord.Guild, user: discord.Member) -> str:
+        voice_client = guild.voice_client
+        if not voice_client or not (voice_client.is_playing() or voice_client.is_paused()):
+            return "❓ Nothing is playing to skip!"
+        if user.voice is None or user.voice.channel != voice_client.channel:
+            return "🔇 You must be in the same voice channel to skip!"
+        current = self.current_song.get(guild.id)
+        title_to_skip = current[1] if current else "the current song"
+        voice_client.stop()
+        return f"⏭️ Skipped **{title_to_skip}**!"
 
     # pause command
     @app_commands.command(name="pause", description="Pauses the current song")
@@ -380,6 +441,20 @@ class Music(commands.Cog):
             self.cleanup_guild(guild_id)
             await interaction.followup.send("⏹️ Cleared queue (was not in a voice channel).")
 
+    # stop helper 
+    async def handle_stop(self, guild: discord.Guild, user: discord.Member) -> str:
+        voice_client = guild.voice_client
+        if not voice_client or not voice_client.is_connected():
+            return "❌ Not connected to a voice channel."
+        if user.voice is None or user.voice.channel != voice_client.channel:
+            return "🔇 You must be in the same voice channel."
+        queue = self.get_queue(guild.id)
+        queue.clear()
+        self.current_song.pop(guild.id, None)
+        voice_client.stop()
+        await voice_client.disconnect()
+        self.cleanup_guild(guild.id)
+        return "⏹️ Stopped playback, cleared queue, and disconnected."
 
 # create setup function for cog
 async def setup(bot: commands.Bot): # Added type hint
