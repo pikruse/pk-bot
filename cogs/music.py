@@ -63,7 +63,7 @@ class MusicControlView(discord.ui.View):
             await interaction.response.send_message("Not connected to a voice channel.", ephemeral=True)
             return
         
-        if interaction.user.voice is None or interaction.user.voice_channel != voice_client.channel:
+        if interaction.user.voice is None or interaction.user.voice.channel != voice_client.channel:
             await interaction.response.send_message("You must be in the same voice channel.", ephemeral=True)
             return
         
