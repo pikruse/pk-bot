@@ -8,6 +8,7 @@ import os
 import yt_dlp
 import asyncio
 import logging
+import subprocess
 
 # Configure logging
 logging.basicConfig(level=logging.INFO) # Use INFO or DEBUG as needed
@@ -16,10 +17,13 @@ logging.basicConfig(level=logging.INFO) # Use INFO or DEBUG as needed
 intents = discord.Intents.all() # Consider more specific intents if possible
 
 # music options
-# Removed volume filter, will use PCMVolumeTransformer
 FFMPEG_OPTIONS = {
-    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-    'options': '-vn'
+    'before_options': (
+        '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
+        '-nostdin -xerror -hide_banner -loglevel error'
+    ),
+    'options': '-vn -acodec libopus -b:a 192k -f opus',
+    'stderr': subprocess.PIPE,
 }
 
 # Update YDL_OPTIONS to get direct audio streams
@@ -97,6 +101,7 @@ class Music(commands.Cog):
         self.queues = {}  # stores queues per guild: {guild_id: [(url, title), ...]}
         self.text_channels = {}  # stores text channels per guild: {guild_id: channel_id}
         self.current_song = {} # Stores the currently playing song info: {guild_id: (url, title)}
+        self.active_processes = {}
 
     # Helper to get guild-specific queue
     def get_queue(self, guild_id: int) -> list:
@@ -115,6 +120,20 @@ class Music(commands.Cog):
                     self.text_channels[guild_id] = channel.id # Store for next time
                     return channel
         return None
+    
+    # cleanup processes helper
+    async def cleanup_processes(self, guild_id: int):
+        process = self.active_processes.get(guild_id)
+        if process:
+            try:
+                if process.poll() is None:
+                    process.kill()
+                    await asyncio.sleep(0.5)
+            except Exception as e:
+                logging.warning(f"Cleanup error for guild {guild_id}: {e}")
+            finally:
+                del self.active_processes[guild_id]
+                logging.info(f"Cleaned up process for guild {guild_id}") 
 
     # Helper to clean up guild state
     def cleanup_guild(self, guild_id: int):
@@ -130,8 +149,6 @@ class Music(commands.Cog):
         text_channel = await self.get_text_channel(guild_id) # Use helper
 
         if not guild or not guild.voice_client:
-            logging.warning(f"play_next called for guild {guild_id} but not connected.")
-            self.cleanup_guild(guild_id) # Clean up if unexpectedly disconnected
             return
 
         voice_client = guild.voice_client
@@ -139,31 +156,39 @@ class Music(commands.Cog):
         # Stop previous playback if any (safety measure)
         if voice_client.is_playing() or voice_client.is_paused():
             voice_client.stop() # This will trigger the 'after' callback if one was running
-
+        
+        if voice_client.is_paused():
+            return
+        
         if queue:
             url, title, headers = queue.pop(0)
             self.current_song[guild_id] = (url, title) # Store current song info
 
             try:
-                # Consider re-extracting URL here if expiry is an issue
-                # with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-                #     info = ydl.extract_info(url, download=False) # Re-extract if needed
-                #     stream_url = info['url']
-                # source = discord.FFmpegPCMAudio(stream_url, **FFMPEG_OPTIONS)
-
-                source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
+                # Modify the play_next method when creating the source:
+                source = discord.FFmpegPCMAudio(
+                    executable='ffmpeg',  # Explicitly specify executable
+                    source=url,
+                    **FFMPEG_OPTIONS
+                )
+                self.active_processes[guild_id] = source._process
                 transformed_source = PCMVolumeTransformer(source, volume=0.3) # Apply volume here
 
                 def after_play(error):
-                    self.current_song.pop(guild_id, None) # Clear current song after playing
+                    self.current_song.pop(guild_id, None)
                     if error:
-                        logging.error(f"Player error in guild {guild_id}: {error}")
-                        # Try to send error message to Discord
-                        error_message = f"Player error: {error}"
-                        if text_channel:
-                            asyncio.run_coroutine_threadsafe(text_channel.send(error_message), self.client.loop)
-                        else:
-                             logging.warning(f"Could not send player error to guild {guild_id}: No text channel found.")
+                        logging.error(f"Player error: {error}")
+                    
+                    # Proper process cleanup
+                    if voice_client.source:
+                        if hasattr(voice_client.source, 'cleanup'):
+                            voice_client.source.cleanup()
+                        voice_client.source = None
+                    
+                    # Schedule next only if not paused
+                    if not voice_client.is_paused():
+                        asyncio.run_coroutine_threadsafe(self.play_next(guild_id), self.client.loop)
+
                     # Always schedule the next check
                     asyncio.run_coroutine_threadsafe(self.play_next(guild_id), self.client.loop)
 
@@ -257,7 +282,7 @@ class Music(commands.Cog):
             queue = self.get_queue(guild_id)
             queue.append((song_url, song_title, headers))
             
-            if not voice_client.is_playing():
+            if not voice_client.is_playing() and not voice_client.is_paused():
                 await self.play_next(guild_id)
                 await interaction.followup.send(f"🎶 Now playing: **{song_title}**", view=MusicControlView())
             else:
@@ -395,16 +420,14 @@ class Music(commands.Cog):
         return f"⏭️ Skipped **{title_to_skip}**!"
 
     # pause command
-    @app_commands.command(name="pause", description="Pauses the current song")
+    @commands.command(name="pause")
     async def pause(self, interaction: discord.Interaction):
         voice_client = interaction.guild.voice_client
         if voice_client and voice_client.is_playing():
             voice_client.pause()
-            await interaction.response.send_message("⏸️ Audio paused!")
-        elif voice_client and voice_client.is_paused():
-             await interaction.response.send_message(" Audio is already paused!")
+            await interaction.response.send_message("⏸️ Paused!")
         else:
-            await interaction.response.send_message("❓ Nothing is playing to pause.")
+            await interaction.response.send_message("❌ Nothing is playing!")
 
     # resume command
     @app_commands.command(name="resume", description="Resumes the paused song")
