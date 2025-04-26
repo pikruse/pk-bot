@@ -16,17 +16,6 @@ logging.basicConfig(level=logging.INFO) # Use INFO or DEBUG as needed
 # options
 intents = discord.Intents.all() # Consider more specific intents if possible
 
-# music options
-FFMPEG_OPTIONS = {
-    'before_options': (
-        '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
-        '-nostdin -xerror -hide_banner -loglevel error'
-    ),
-    'options': '-vn -acodec libopus -b:a 192k -f opus',
-    'stderr': subprocess.PIPE,
-}
-
-# Update YDL_OPTIONS to get direct audio streams
 YDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
@@ -40,6 +29,18 @@ YDL_OPTIONS = {
         'preferredcodec': 'opus',
         'preferredquality': '192',
     }]
+}
+
+FFMPEG_OPTIONS = {
+    'before_options': (
+        '-reconnect 1 -reconnect_streamed 1 '
+        '-reconnect_delay_max 5 -nostdin '
+        '-hide_banner -loglevel error'
+    ),
+    'options': (
+        '-vn '
+    ),
+    'stderr': subprocess.PIPE 
 }
 
 class MusicControlView(discord.ui.View):
@@ -183,14 +184,10 @@ class Music(commands.Cog):
                     if voice_client.source:
                         if hasattr(voice_client.source, 'cleanup'):
                             voice_client.source.cleanup()
-                        voice_client.source = None
                     
                     # Schedule next only if not paused
                     if not voice_client.is_paused():
                         asyncio.run_coroutine_threadsafe(self.play_next(guild_id), self.client.loop)
-
-                    # Always schedule the next check
-                    asyncio.run_coroutine_threadsafe(self.play_next(guild_id), self.client.loop)
 
                 voice_client.play(transformed_source, after=after_play)
 
