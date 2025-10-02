@@ -20,16 +20,13 @@ YDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
     'cookiefile': 'cookies.txt',
-    'default_search': 'ytsearch',
+    'default_search': 'ytsearch', 
     'nocheckcertificate': True,
     'ignoreerrors': False,
     'quiet': True,
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'opus',
-        'preferredquality': '192',
-    }]
+    'compat_opts': ['seperate-video-versions'],  # YouTube compatibility
 }
+   
 
 FFMPEG_OPTIONS = {
     'before_options': (
@@ -251,7 +248,8 @@ class Music(commands.Cog):
                     f for f in entry.get('formats', [])
                     if f.get('acodec') != 'none' 
                     and f.get('protocol') in ('https', 'http_dash_segments')
-                ), None)
+                    and f.get('vcodec') == 'none'  # Audio only
+                ), entry.get('formats', [{}])[0])  # Fallback to first format
 
                 if not audio_format:
                     return await interaction.followup.send("❌ Could not find playable audio format!")
