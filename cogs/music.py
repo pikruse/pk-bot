@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO) # Use INFO or DEBUG as needed
 intents = discord.Intents.all() # Consider more specific intents if possible
 
 YDL_OPTIONS = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio[ext=m4a]/bestaudio/best',
     'noplaylist': True,
     'cookiefile': 'cookies.txt',
     'default_search': 'ytsearch', 
@@ -25,6 +25,8 @@ YDL_OPTIONS = {
     'ignoreerrors': False,
     'quiet': True,
     'compat_opts': ['seperate-video-versions'],  # YouTube compatibility
+    'extract_flat': False,
+    'cachedir': False,
 }
    
 
@@ -35,9 +37,14 @@ FFMPEG_OPTIONS = {
         '-hide_banner -loglevel error'
     ),
     'options': (
-        '-vn '
+        '-vn '                                  # No video
+        '-b:a 128k '                            # Reliable bitrate (Discord downmixes anyway)
+        '-bufsize 64k '                         # Smaller buffer for lower latency
+        '-threads 1 '                           # Reduce threading overhead
+        '-af "aresample=async=1:first_pts=0" '  # Smooth out jitter
+        '-flush_packets 1 '                     # Flush immediately (minimize buffering)
     ),
-    'stderr': subprocess.PIPE 
+    'stderr': subprocess.PIPE
 }
 
 class MusicControlView(discord.ui.View):
