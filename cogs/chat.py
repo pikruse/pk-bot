@@ -13,19 +13,29 @@ class Chat(commands.Cog):
     def __init__(self, client):
         self.client = client
         self.LLM_PORT = 11434
-        self.model_name = "qwen3:0.6b"
+        self.model_name = "qwen3:8b"
+        self.system_prompt = "You are Chudley Updoot, a helpful and friendly assistant." \
+                            "Your goal is to be as helpful and as engaging as possible in conversation." \
+                            "Answer all questions from users honestly, correctly, and accurately." \
+                            "In addition, talk like a redditor."
+                                
         
     # call ollama 
     async def call_ollama(self, prompt):
         try:
+            # prepare request payload
+            payload = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "stream": False,
+                "system": self.system_prompt
+            }
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                         f"http://localhost:{self.LLM_PORT}/api/generate",
-                        json={"model": self.model_name,
-                            "prompt": prompt,
-                            "stream": False
-                            },
-                            timeout=aiohttp.ClientTimeout(total=60)
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=60)
                     ) as response:
                         if response.status != 200:
                             error_text = await response.text()
@@ -53,6 +63,7 @@ class Chat(commands.Cog):
         return context
     
     @app_commands.command(name="chat", description="Chat with Chudley")
+    @app_commands.describe(message="The message you want to send to Chudley")
     async def chat(self, interaction: discord.Interaction, message: str):
         await interaction.response.defer()
         
@@ -60,14 +71,14 @@ class Chat(commands.Cog):
         channel = interaction.channel
         try:
             context = await self.get_channel_context(channel)
-            full_prompt = f"""Recent chat context:
+            user_prompt = f"""Recent chat context:
                 {context}
                 {interaction.user.display_name}: {message}
                 Assistant:"""
-            response_text = await self.call_ollama(full_prompt)
+            response_text = await self.call_ollama(user_prompt)
             if len(response_text) > 2000:
                 response_text = response_text[:1997] + "..."
-            await interaction.followup.send(f"**Chudley Says**:\n{response_text}")
+            await interaction.followup.send(f"{response_text}")
 
         except Exception as e:
             logging.error(f"Chat error: {str(e)}")
