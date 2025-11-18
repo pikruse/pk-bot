@@ -218,8 +218,8 @@ class Music(commands.Cog):
 
     # play command
     @app_commands.command(name="play", description="Play audio from YouTube")
-    @app_commands.describe(query="Song name or URL")
-    async def play(self, interaction: discord.Interaction, *, query: str):
+    @app_commands.describe(song="Song name or URL")
+    async def play(self, interaction: discord.Interaction, *, song: str):
         await interaction.response.defer()
         guild_id = interaction.guild.id
         self.text_channels[guild_id] = interaction.channel.id
@@ -239,7 +239,7 @@ class Music(commands.Cog):
             # Extract audio information
             with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
                 loop = asyncio.get_event_loop()
-                info = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
+                info = await loop.run_in_executor(None, lambda: ydl.extract_info(song, download=False))
 
                 # Get first valid entry
                 if 'entries' in info:

@@ -1,0 +1,80 @@
+import discord
+from discord import app_commands
+from discord.ext import commands
+import aiohttp
+import asyncio
+import logging
+import json
+
+LLM_PORT = 11434
+
+# make cog for chatting with LLM
+class Chat(commands.Cog):
+    def __init__(self, client):
+        self.client = client
+        self.LLM_PORT = 11434
+        self.model_name = "qwen3:0.6b"
+        
+    # call ollama 
+    async def call_ollama(self, prompt):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                        f"http://localhost:{self.LLM_PORT}/api/generate",
+                        json={"model": self.model_name,
+                            "prompt": prompt,
+                            "stream": False
+                            },
+                            timeout=aiohttp.ClientTimeout(total=60)
+                    ) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            raise Exception(f"LLM error: {response.status}: {error_text}")
+                        
+                        data = await response.json()
+                        if "response" in data:
+                            return data["response"]
+                        else:
+                            raise Exception(f"Unexpected response format: {data}")
+        except aiohttp.ClientError as e:
+            raise Exception(f"Connection error: {str(e)}")            
+    
+    async def get_channel_context(self, channel, limit=5):
+        """Fetch the last N messages from the channel"""
+        context = ""
+        messages = []
+
+        async for message in channel.history(limit=limit):
+            messages.append(message)
+
+        messages.reverse()
+        for message in messages:
+            context += f"{message.author.display_name}: {message.clean_content}\n"
+        return context
+    
+    @app_commands.command(name="chat", description="Chat with Chudley")
+    async def chat(self, interaction: discord.Interaction, message: str):
+        await interaction.response.defer()
+        
+        # get channel where user sent the message
+        channel = interaction.channel
+        try:
+            context = await self.get_channel_context(channel)
+            full_prompt = f"""Recent chat context:
+                {context}
+                {interaction.user.display_name}: {message}
+                Assistant:"""
+            response_text = await self.call_ollama(full_prompt)
+            if len(response_text) > 2000:
+                response_text = response_text[:1997] + "..."
+            await interaction.followup.send(f"**Chudley Says**:\n{response_text}")
+
+        except Exception as e:
+            logging.error(f"Chat error: {str(e)}")
+            await interaction.followup.send("An error occurred while processing your request.")
+    
+# create setup function for cog
+async def setup(bot: commands.Bot): # Added type hint
+    await bot.add_cog(Chat(bot))
+    logging.info("Chat Cog Loaded")
+                
