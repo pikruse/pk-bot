@@ -18,11 +18,7 @@ class Chat(commands.Cog):
         self.model_name = "qwen3:0.6b"
         self.system_prompt = "You are Chudley Updoot, a helpful and friendly assistant." \
                             "Your goal is to be as helpful and as engaging as possible in conversation." \
-                            "Answer all questions from users honestly, correctly, and accurately." 
-                                
-        self.user_cooldowns = defaultdict(float)
-        self.cooldown_seconds = 10
-
+                            "Answer all questions from users honestly, correctly, and accurately."  
         
     # call ollama 
     async def call_ollama(self, prompt):
@@ -81,30 +77,6 @@ class Chat(commands.Cog):
             logging.error(f"Chat error: {str(e)}")
             return f"An error occurred while processing your request: {str(e)}"
     
-    @app_commands.command(name="chat", description="Chat with Chudley")
-    @app_commands.describe(message="The message you want to send to Chudley")
-    async def chat(self, interaction: discord.Interaction, message: str):
-        await interaction.response.defer()
-
-        # show user query
-        await interaction.followup.send(f"**{interaction.user.display_name}:** {message}")
-        
-        try:
-            response_text = await self.process_chat_message(
-                message,
-                interaction.user,
-                interaction.channel
-            )
-
-            if len(response_text) > 2000:
-                response_text = response_text[:1997] + "..."
-            
-            await interaction.channel.send(f"{response_text}")
-
-        except Exception as e:
-            logging.error(f"Chat error: {str(e)}")
-            await interaction.followup.send("An error occurred while processing your request.")
-    
     @commands.Cog.listener()
     async def on_message(self, message):
         # ignore bot messages
@@ -114,7 +86,7 @@ class Chat(commands.Cog):
         # check if bot mentioned
         if self.client.user in message.mentions:
             # remove bot mention from msg
-            content = message.contet
+            content = message.content
             for mention in message.mentions:
                 content = content.replace(f'<@mention.id>', '').replace(f'<@!{mention.id}>', '')
             content = content.strip()
