@@ -13,11 +13,10 @@ class Chat(commands.Cog):
     def __init__(self, client):
         self.client = client
         self.LLM_PORT = 11434
-        self.model_name = "qwen3:8b"
+        self.model_name = "qwen3:0.6b"
         self.system_prompt = "You are Chudley Updoot, a helpful and friendly assistant." \
                             "Your goal is to be as helpful and as engaging as possible in conversation." \
-                            "Answer all questions from users honestly, correctly, and accurately." \
-                            "In addition, talk like a redditor."
+                            "Answer all questions from users honestly, correctly, and accurately." 
                                 
         
     # call ollama 
