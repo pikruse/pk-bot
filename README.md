@@ -1,8 +1,8 @@
-**Discord Bot**
+# Discord Bot
 
 - **Purpose**: A small Discord bot with two primary purposes: a music player and a chat assistant.
 
-**Music Player**:
+## Music Player
 - **/play**: Play audio from YouTube (supports search terms or direct URLs). Adds to the guild queue and shows a playback view with controls.
 - **/join**: Joins the voice channel you're in.
 - **/leave**: Disconnects the bot from the voice channel.
@@ -12,18 +12,18 @@
 - **/clear**: Clears the queue.
 - Button controls: A UI view with Skip, Pause/Resume, and Stop buttons appears alongside some music responses.
 
-**Chat Assistant**:
+## Chat Assistant
 - The bot listens for mentions in text channels and forwards the message (plus recent channel context) to a local LLM HTTP API.
 - The LLM endpoint is expected at `http://localhost:11434/api/generate` by default.
 - The chat cog returns the model reply as a threaded reply in-channel.
 
-**Files of interest**:
+## Files of Interest
 - `main.py` - Bot bootstrap, event handlers, and global commands such as `/ping`, `/hello`, `/pfp`, and `/credits`.
 - `cogs/music.py` - Music cog: queue management, yt-dlp integration, and FFmpeg playback.
 - `cogs/chat.py` - Chat cog: collects context, calls the local LLM API, and replies when mentioned.
 - `environment.yaml` - Conda environment specification (replaces requirements.txt).
 
-**Setup & Run**
+## Setup & Run
 1. Create the Conda environment from `environment.yaml` (from the repo root):
 
 ```bash
