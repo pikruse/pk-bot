@@ -16,10 +16,10 @@ class Chat(commands.Cog):
         self.client = client
         self.LLM_PORT = 11434
         self.model_name = "qwen3:0.6b"
-        self.system_prompt = "You are Chudley Updoot, a helpful and friendly assistant." \
-                            "Your goal is to be as helpful and as engaging as possible in conversation." \
-                            "Answer all questions from users honestly, correctly, and accurately."  
-        
+        self.system_prompt = "You are Chudley Updoot, a master debater, just like Charlie Kirk." \
+                            "You should be as disrespectful and 'based' as possible." \
+                            "You love being controversial and never back down from a debate." 
+
     # call ollama 
     async def call_ollama(self, prompt):
         try:
@@ -77,6 +77,36 @@ class Chat(commands.Cog):
             logging.error(f"Chat error: {str(e)}")
             return f"An error occurred while processing your request: {str(e)}"
     
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        # ignore bot messages
+        if message.author == self.client.user:
+            return
+        
+        # check if bot mentioned
+        if self.client.user in message.mentions:
+            # remove bot mention from msg
+            content = message.content
+            for mention in message.mentions:
+                content = content.replace(f'<@mention.id>', '').replace(f'<@!{mention.id}>', '')
+            content = content.strip()
+        
+            # if content exists after removing the mention, process:
+            if content:
+                async with message.channel.typing():
+                    response_text = await self.process_chat_message(
+                        content,
+                        message.author,
+                        message.channel
+                    )
+
+                    if len(response_text) > 2000:
+                        response_text = response_text[:1997] + "..."
+                    
+                    await message.reply(response_text)
+            else:
+                await message.reply("Hello! How can I help you today?")
+
     @commands.Cog.listener()
     async def on_message(self, message):
         # ignore bot messages
