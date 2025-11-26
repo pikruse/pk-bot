@@ -46,7 +46,20 @@ DISCORD_TOKEN=YOUR_TOKEN_HERE
 DISCORD_GUILD=YOUR_GUILD_ID
 ```
 
-4. Run the bot:
+4. Install [Ollama](https://ollama.ai/) for the chat assistant feature.
+
+5. Run the bot using the launch script:
+
+```bash
+./launch.sh
+```
+
+The launch script will:
+- Kill any existing bot process (prevents duplicate responses)
+- Start Ollama if not already running
+- Launch the bot
+
+Alternatively, run manually:
 
 ```bash
 python main.py

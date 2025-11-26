@@ -46,40 +46,35 @@ async def record_latency():
 
 # load all cogs
 async def load_cogs():
-    # load all cogs
     for filename in os.listdir('./cogs'):
         if filename.endswith('.py') and not filename.startswith('__'):
-            await client.load_extension(f'cogs.{filename[:-3]}')
-
-# setup hook to copy global commands to the guild
-async def setup_hook():
-    # This copies the global commands over to your guild.
-    client.tree.copy_global_to(guild=discord.Object(GUILD))
-    await client.tree.sync(guild=discord.Object(GUILD))
+            ext_name = f'cogs.{filename[:-3]}'
+            if ext_name not in client.extensions:
+                await client.load_extension(ext_name)
 
 ##############
 ### EVENTS ###
 ##############
 
-# on_ready event is triggered when the bot is ready to work
+# on_ready may fire multiple times (reconnects). Keep it idempotent.
 @client.event
 async def on_ready():
-
-    # load all cogs
+    # load cogs (only once due to guard in load_cogs)
     await load_cogs()
-    
-    # sync
+
+    # sync slash commands
     try:
-        synced = await client.tree.sync()
+        client.tree.copy_global_to(guild=discord.Object(GUILD))
+        synced = await client.tree.sync(guild=discord.Object(GUILD))
         print(f"synced {len(synced)} commands")
     except Exception as e:
         print(e)
 
-    # print "ready" in the console when the bot is ready to work
     print("ready")
 
-    # start recording latency
-    record_latency.start()
+    # start latency recorder only once
+    if not record_latency.is_running():
+        record_latency.start()
 
 # implement reaction role 
 @client.event

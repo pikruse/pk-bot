@@ -22,6 +22,8 @@ class Chat(commands.Cog):
         self.client = client
         self.LLM_PORT = LLM_PORT
         self.model_name = "qwen3:0.6b"
+        # Track messages we've already responded to (prevent double-response)
+        self._responded_messages: set[int] = set()
         # Use a neutral, safe system prompt by default. Keep persona/config
         # changes out of source control or configurable via runtime settings.
         self.system_prompt = (
@@ -93,16 +95,41 @@ class Chat(commands.Cog):
     
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        """Reply when the bot is mentioned in chat.
+        """Reply when the bot is mentioned or when a user replies to the bot's message.
 
-        This listener ignores messages from the bot itself and only reacts when
-        mentioned. The mention text is stripped before forwarding to the LLM.
+        This listener ignores messages from the bot itself. It triggers on:
+        1. Direct @mentions of the bot.
+        2. Replies to any message authored by the bot.
         """
+        # Ignore bot's own messages
         if message.author == self.client.user:
             return
 
-        if self.client.user in message.mentions:
-            # Safely remove mention tokens and trim whitespace
+        # Prevent double-processing the same message
+        if message.id in self._responded_messages:
+            logging.info(f"Skipping already-processed message: id={message.id}")
+            return
+
+        # Determine if this message should trigger a response
+        is_mention = self.client.user in message.mentions
+        is_reply_to_bot = (
+            message.reference is not None
+            and message.reference.resolved is not None
+            and isinstance(message.reference.resolved, discord.Message)
+            and message.reference.resolved.author == self.client.user
+        )
+
+        # Debug: log trigger info
+        logging.info(f"on_message fired: id={message.id}, is_mention={is_mention}, is_reply_to_bot={is_reply_to_bot}")
+
+        if is_mention or is_reply_to_bot:
+            # Mark as processed immediately to prevent race conditions
+            self._responded_messages.add(message.id)
+            # Keep set from growing indefinitely
+            if len(self._responded_messages) > 1000:
+                self._responded_messages.clear()
+
+            # Strip mention tokens from content
             content = message.content
             for mention in message.mentions:
                 content = content.replace(f'<@!{mention.id}>', '').replace(f'<@{mention.id}>', '')
@@ -119,36 +146,7 @@ class Chat(commands.Cog):
                     if len(response_text) > 2000:
                         response_text = response_text[:1997] + "..."
 
-                    await message.reply(response_text)
-            else:
-                await message.reply("Hello! How can I help you today?")
-
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        # ignore bot messages
-        if message.author == self.client.user:
-            return
-        
-        # check if bot mentioned
-        if self.client.user in message.mentions:
-            # remove bot mention from msg
-            content = message.content
-            for mention in message.mentions:
-                content = content.replace(f'<@mention.id>', '').replace(f'<@!{mention.id}>', '')
-            content = content.strip()
-        
-            # if content exists after removing the mention, process:
-            if content:
-                async with message.channel.typing():
-                    response_text = await self.process_chat_message(
-                        content,
-                        message.author,
-                        message.channel
-                    )
-
-                    if len(response_text) > 2000:
-                        response_text = response_text[:1997] + "..."
-                    
+                    logging.info(f"Sending reply for message id={message.id}")
                     await message.reply(response_text)
             else:
                 await message.reply("Hello! How can I help you today?")
