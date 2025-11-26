@@ -21,18 +21,22 @@
 - `main.py` - Bot bootstrap, event handlers, and global commands such as `/ping`, `/hello`, `/pfp`, and `/credits`.
 - `cogs/music.py` - Music cog: queue management, yt-dlp integration, and FFmpeg playback.
 - `cogs/chat.py` - Chat cog: collects context, calls the local LLM API, and replies when mentioned.
-- `requirements.txt` - Python dependencies.
+- `environment.yaml` - Conda environment specification (replaces requirements.txt).
 
 **Setup & Run**
-1. Create a virtual environment and install dependencies (from the repo root):
+1. Create the Conda environment from `environment.yaml` (from the repo root):
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+conda env create -f environment.yaml
 ```
 
-2. Create a `.env` file (do NOT commit this). Required variables:
+2. Activate the environment (the environment name in this repo is `discord-bot`):
+
+```bash
+conda activate discord-bot
+```
+
+3. Create a `.env` file (do NOT commit this). Required variables:
 - `DISCORD_TOKEN` - Your bot token
 - `DISCORD_GUILD` - Guild ID where you want to register commands
 
@@ -42,7 +46,7 @@ DISCORD_TOKEN=YOUR_TOKEN_HERE
 DISCORD_GUILD=YOUR_GUILD_ID
 ```
 
-3. Run the bot:
+4. Run the bot:
 
 ```bash
 python main.py
