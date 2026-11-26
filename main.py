@@ -29,7 +29,12 @@ latency_values = []
 timestamps = []
 
 # discord opus
-discord.opus.load_opus('libopus.dylib')
+for _opus_path in ('libopus.dylib', '/opt/homebrew/lib/libopus.dylib', '/usr/local/lib/libopus.dylib'):
+    try:
+        discord.opus.load_opus(_opus_path)
+        break
+    except OSError:
+        continue
 if not discord.opus.is_loaded():
     raise RuntimeError('Opus failed to load')
 
